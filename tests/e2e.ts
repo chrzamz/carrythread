@@ -161,6 +161,13 @@ try {
   page.on('pageerror', (error) => errors.push(error.message))
   // firstWindow may be reported before its initial about:blank navigation finishes.
   await page.waitForURL((url) => url.protocol === 'file:' && url.pathname.endsWith('/renderer/index.html'))
+  await writeFile(join(screenshots, 'startup-probe.json'), JSON.stringify(await page.evaluate(() => {
+    const probe = { bridge: typeof window.carrythread?.snapshot, readyState: document.readyState, visibilityState: document.visibilityState, raf: false, timer: false }
+    ;(window as unknown as { carrythreadE2EProbe: typeof probe }).carrythreadE2EProbe = probe
+    requestAnimationFrame(() => { probe.raf = true })
+    setTimeout(() => { probe.timer = true }, 100)
+    return probe
+  }), null, 2))
   await page.waitForFunction(() => typeof window.carrythread?.snapshot === 'function')
   const bootstrap = await page.evaluate(() => window.carrythread.snapshot())
   assert.ok(bootstrap.settings.sources.some(source => source.id === 'fixture-source'), 'The isolated synthetic profile must be loaded before exercising the UI')
@@ -380,6 +387,7 @@ try {
     url: location.href,
     readyState: document.readyState,
     visibilityState: document.visibilityState,
+    timingProbe: (window as unknown as { carrythreadE2EProbe?: unknown }).carrythreadE2EProbe,
     bridge: typeof window.carrythread?.snapshot,
     focused: document.hasFocus(),
     buttons: Array.from(document.querySelectorAll('button')).map(button => ({
