@@ -49,3 +49,8 @@ Electron 45.2.1 and dependencies were installed, and native SQLite was checked. 
 - The attempted isolated Ollama check did not start inference or download/load a model because startup was blocked in its constrained test environment. No local-model semantic result or direct hosted-provider HTTP pass is claimed.
 - The final narrow fix handles a proposal citing the registered marker user message while omitting `existingId` after a title change. It attaches only the uniquely linked, directly evidenced item; unrelated topics in the same session remain separate. The added regressions and updated source E2E passed. The test launch is inside cleanup protection so failed starts still clean up.
 - Downloads remain **pre-release**. Earlier source CI and Pages deployment are real completed checkpoints, while the latest source, packaged-runtime, installer, signing, and public-download evidence must be recorded separately.
+
+## Native release build checkpoint
+
+- Candidate `ab5c7365bf5760fe18d5ee1e1b6432dbb919b991` was pushed. Its [Pages deployment](https://github.com/chrzamz/carrythread/actions/runs/41521720484) passed, and the public four-language copy matched the source bytes.
+- In [release build 41521730321](https://github.com/chrzamz/carrythread/actions/runs/41521730321), Linux passed core checks, packaging, unpacked GUI E2E, actual DEB installation, installed GUI E2E, and uninstall. Final artifact staging rejected the legitimate format-native architecture labels (`amd64` for DEB, `x86_64` for AppImage) because it required literal `x64`. The staging check now recognizes those exact format-specific labels while retaining architecture/signing validation; a new build run is required before distribution.

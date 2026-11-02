@@ -325,7 +325,9 @@ jobs:
           if(platform==='mac') assert.equal(process.env.SOURCE_E2E_OUTCOME,'success','macOS source E2E must pass');
           const files=(await readdir('release',{withFileTypes:true})).filter(e=>e.isFile()&&/^Carrythread-/.test(e.name)&&/\.(?:dmg|zip|exe|AppImage|deb)$/.test(e.name)).map(e=>e.name).sort();
           assert.ok(files.length>=2,'Expected both configured distribution targets');
-          assert.ok(files.every(name=>name.includes(arch)&&name.includes('unsigned')),'Artifact names must identify architecture and signing state');
+          // electron-builder uses each Linux format's native architecture label.
+          const artifactArch=name=>platform==='linux'&&arch==='x64'?(name.endsWith('.deb')?'amd64':name.endsWith('.AppImage')?'x86_64':arch):arch;
+          assert.ok(files.every(name=>name.includes(`-${artifactArch(name)}-`)&&name.includes('-unsigned.')),'Artifact names must identify architecture and signing state');
           await mkdir('release-artifacts',{recursive:true});
           const sums=[];
           for(const file of files) {const bytes=await readFile(join('release',file));sums.push(`${createHash('sha256').update(bytes).digest('hex')}  ${file}`);await copyFile(join('release',file),join('release-artifacts',file));}
