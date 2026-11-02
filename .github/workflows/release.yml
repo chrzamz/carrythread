@@ -80,6 +80,17 @@ jobs:
           NODE
       - run: pnpm install --frozen-lockfile
       - run: pnpm check
+      - name: Windows packaged startup preflight
+        if: runner.os == 'Windows'
+        timeout-minutes: 5
+        run: |
+          # Catch desktop-driver failures before downloading browsers or making installers.
+          pnpm exec electron-builder --win --x64 --dir --publish never
+          node --input-type=module <<'NODE'
+          import {execFileSync} from 'node:child_process';
+          import {resolve} from 'node:path';
+          execFileSync(process.execPath,[resolve('node_modules/tsx/dist/cli.mjs'),'tests/e2e.ts'],{env:{...process.env,CARRYTHREAD_EXECUTABLE:resolve('release/win-unpacked/Carrythread.exe')},stdio:'inherit',timeout:180000});
+          NODE
       - name: Electron source end-to-end on native macOS runners
         id: source_e2e
         if: runner.os == 'macOS'
