@@ -48,8 +48,8 @@ jobs:
       run:
         shell: bash
     env:
-      # Initial public builds are explicitly unsigned / not notarized.
-      # Signing must be a separately configured and verified release change.
+      # No developer certificate is used. macOS explicitly uses ad-hoc bundle signing.
+      # Developer-identity signing/notarization remain a separate verified change.
       CSC_IDENTITY_AUTO_DISCOVERY: 'false'
       RELEASE_TAG: ${{ inputs.tag || (startsWith(github.ref, 'refs/tags/') && github.ref_name) || '' }}
       TARGET_PLATFORM: ${{ matrix.platform }}
@@ -123,7 +123,7 @@ jobs:
           import assert from 'node:assert/strict';
           import {appendFile,readFile,readdir,rm,stat} from 'node:fs/promises';
           import {join,resolve,relative} from 'node:path';
-          import {execFileSync} from 'node:child_process';
+          import {execFileSync,spawnSync} from 'node:child_process';
           const p=JSON.parse(await readFile('package.json','utf8'));
           const platform=process.env.TARGET_PLATFORM;
           const root=resolve('release');
@@ -137,6 +137,11 @@ jobs:
               else for(const entry of await readdir(directory,{withFileTypes:true})) if(entry.isDirectory()&&entry.name.endsWith('.app')) appBundles.push(join(directory,entry.name));
             }
             for(const bundle of appBundles) {
+              execFileSync('codesign',['--verify','--deep','--strict',bundle],{stdio:'pipe',timeout:60000});
+              const signature=spawnSync('codesign',['--display','--verbose=4',bundle],{encoding:'utf8',timeout:60000});
+              assert.equal(signature.status,0,'Signature metadata must be readable');
+              assert.match(signature.stderr,/Signature=adhoc/,'Expected explicit ad-hoc signing');
+              assert.match(signature.stderr,/flags=.*\bruntime\b/,'Hardened runtime must remain enabled');
               const executable=execFileSync('/usr/libexec/PlistBuddy',['-c','Print :CFBundleExecutable',join(bundle,'Contents','Info.plist')],{encoding:'utf8'}).trim();
               assert.ok(executable&&!/[\\/\r\n]/.test(executable),'Invalid CFBundleExecutable');
               const target=join(bundle,'Contents','MacOS',executable);
@@ -212,6 +217,14 @@ jobs:
             assert.equal(apps.length,1,'Expected one application in the DMG');
             const app=join(state.installed,apps[0].name);
             execFileSync('ditto',[join(state.mount,apps[0].name),app],{stdio:'pipe',timeout:120000});
+            execFileSync('codesign',['--verify','--deep','--strict',app],{stdio:'pipe',timeout:60000});
+            state.signatureVerified=true;
+            const archives=artifacts.filter(name=>name.endsWith('.zip'));
+            assert.equal(archives.length,1,'Expected one macOS ZIP');
+            const extracted=join(root,'zip');await mkdir(extracted);
+            execFileSync('ditto',['-xk',resolve('release',archives[0]),extracted],{stdio:'pipe',timeout:120000});
+            execFileSync('codesign',['--verify','--deep','--strict',join(extracted,apps[0].name)],{stdio:'pipe',timeout:60000});
+            state.zipSignatureVerified=true;await save();
             const name=execFileSync('/usr/libexec/PlistBuddy',['-c','Print :CFBundleExecutable',join(app,'Contents','Info.plist')],{encoding:'utf8'}).trim();
             assert.ok(name&&!/[\\/\r\n]/.test(name),'Invalid installed CFBundleExecutable');
             executable=join(app,'Contents','MacOS',name);
@@ -298,7 +311,7 @@ jobs:
             assert.ok(remaining.status!==0||remaining.stdout.trim()!=='installed','DEB uninstall did not remove the package');
           }
           await mkdir('work',{recursive:true});
-          await writeFile('work/installer-validation.json',JSON.stringify({artifact:state.artifact,method:state.method,packageName:state.packageName||null,installStatus:state.installStatus,executableName:state.executable?basename(state.executable):null,distinctFromUnpacked:Boolean(state.executable&&state.installStatus==='complete'),cleanupStatus:'complete'},null,2)+'\n');
+          await writeFile('work/installer-validation.json',JSON.stringify({artifact:state.artifact,method:state.method,packageName:state.packageName||null,installStatus:state.installStatus,executableName:state.executable?basename(state.executable):null,distinctFromUnpacked:Boolean(state.executable&&state.installStatus==='complete'),signatureVerified:state.signatureVerified===true,zipSignatureVerified:state.zipSignatureVerified===true,cleanupStatus:'complete'},null,2)+'\n');
           await rm(root,{recursive:true,force:true});
           console.log({installer:state.artifact,method:state.method,cleanup:'complete'});
           NODE
@@ -334,6 +347,7 @@ jobs:
           const installer=JSON.parse(await readFile('work/installer-validation.json','utf8'));
           assert.equal(installer.installStatus,'complete');assert.equal(installer.cleanupStatus,'complete');assert.equal(installer.distinctFromUnpacked,true);
           if(platform==='mac') assert.equal(process.env.SOURCE_E2E_OUTCOME,'success','macOS source E2E must pass');
+          if(platform==='mac') {assert.equal(installer.signatureVerified,true);assert.equal(installer.zipSignatureVerified,true);}
           const files=(await readdir('release',{withFileTypes:true})).filter(e=>e.isFile()&&/^Carrythread-/.test(e.name)&&/\.(?:dmg|zip|exe|AppImage|deb)$/.test(e.name)).map(e=>e.name).sort();
           assert.ok(files.length>=2,'Expected both configured distribution targets');
           // electron-builder uses each Linux format's native architecture label.
@@ -344,6 +358,8 @@ jobs:
           for(const file of files) {const bytes=await readFile(join('release',file));sums.push(`${createHash('sha256').update(bytes).digest('hex')}  ${file}`);await copyFile(join('release',file),join('release-artifacts',file));}
           await writeFile(`release-artifacts/SHA256SUMS-${platform}-${arch}.txt`,sums.join('\n')+'\n');
           const record={version:p.version,tag:process.env.RELEASE_TAG||null,commit:execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim(),target:{platform,arch},runner:{platform:process.platform,arch:process.arch,node:process.version},artifacts:files,codeSigning:'No developer-identity signing configured; unsigned distribution',notarization:'Not performed',runtimeSignatureNote:'Platform runtimes may contain ad-hoc signatures; these are not developer signing or notarization.',coreChecks:'pnpm check passed',sourceE2E:{status:process.env.SOURCE_E2E_OUTCOME==='success'?'passed':'not-run',note:process.platform==='darwin'?'Real Electron built-source run, synthetic localhost provider':'Source E2E is not run in this packaging job'},packagedE2E:{status:'passed',executable:relative(process.cwd(),process.env.CARRYTHREAD_PACKAGED_EXECUTABLE),profile:'Isolated synthetic application data',provider:'Synthetic localhost HTTP mock',nativeAgentStarted:false,linuxSandboxDisabledForSyntheticTest:process.platform==='linux'},installerInstallation:{status:'passed',artifact:installer.artifact,method:installer.method,guiE2E:'passed',cleanup:'passed',distinctFromUnpacked:true,packageName:installer.packageName,profile:'Isolated synthetic application data',linuxSandboxDisabledForSyntheticTest:process.platform==='linux',limits:'CI runner installation only. Does not verify end-user Gatekeeper/SmartScreen/quarantine prompts, AppImage runtime, Windows portable wrapper, or real native-agent execution.'}};
+          record.bundleSignature=platform==='mac'?{type:'ad-hoc',unpacked:'passed',installed:'passed',zip:'passed',hardenedRuntime:true,developerIdentity:false}:null;
+          record.runtimeSignatureNote=platform==='mac'?'The unpacked app, DMG-installed copy, and ZIP contents passed strict ad-hoc signature verification. This is not Developer ID signing or notarization.':record.runtimeSignatureNote;
           await writeFile(`release-artifacts/BUILD-${platform}-${arch}.json`,JSON.stringify(record,null,2)+'\n');
           console.log({artifacts:files,signing:record.codeSigning});
           NODE
@@ -388,6 +404,7 @@ jobs:
           assert.equal(manifests.length,4,'All four target manifests are required');
           const records=await Promise.all(files.filter(n=>/^BUILD-.*\.json$/.test(n)).map(async n=>JSON.parse(await readFile(join('distribution',n),'utf8'))));
           assert.equal(records.length,4,'All four build records are required');
+          assert.ok(records.filter(r=>r.target.platform==='mac').every(r=>r.bundleSignature?.type==='ad-hoc'&&r.bundleSignature?.unpacked==='passed'&&r.bundleSignature?.installed==='passed'&&r.bundleSignature?.zip==='passed'),'macOS app, DMG, and ZIP signature-integrity evidence is required');
           assert.ok(records.every(r=>r.packagedE2E?.status==='passed'),'Packaged GUI E2E evidence is required for every target');
           assert.ok(records.every(r=>r.installerInstallation?.status==='passed'&&r.installerInstallation?.guiE2E==='passed'&&r.installerInstallation?.cleanup==='passed'),'Actual installer, installed GUI, and cleanup evidence are required for every target');
           assert.equal(new Set(records.map(r=>r.commit)).size,1,'Targets were built from different commits');

@@ -29,7 +29,7 @@ Node 24 and the pnpm version from `packageManager` are used. A version tag must 
 
 Only after packaged GUI E2E succeeds does the job upload installers, SHA-256 sums, and a JSON build record. `sourceE2E`, `packagedE2E`, and `installerInstallation` are separate fields; macOS has source and packaged runs, while Windows/Linux have packaged runs. Synthetic screenshots are separate diagnostic artifacts.
 
-**These initial artifacts are unsigned distributions, without configured developer-identity signing or notarization.** The workflow disables identity auto-discovery and does not consume signing secrets. Embedded platform/runtime ad-hoc signatures are not claimed as developer signing. Adding verified signing is a separate release-engineering change.
+**These initial artifacts have no configured developer-identity signing or notarization.** macOS explicitly uses `identity: "-"` for valid ad-hoc bundle integrity, with the builder's default hardened runtime and Electron entitlements. The unpacked app, DMG-installed copy and extracted ZIP must pass strict `codesign` verification. Ad-hoc signing is not Developer ID signing or Gatekeeper trust. The workflow disables certificate auto-discovery and does not consume signing secrets; adding verified developer signing is a separate release-engineering change.
 
 Tag pushes and ordinary manual runs upload Actions artifacts only. They do not create or publish a GitHub release. A manual run may explicitly set `create_draft: true` and an existing tag; only then does the final job receive `contents: write` and create a draft after verifying checksums and consistent build commits. It refuses to overwrite an existing release. It never publishes the draft automatically.
 

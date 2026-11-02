@@ -56,7 +56,7 @@ The whole-workspace export excludes the handoff registry. Existing markers may r
 
 Provider keys stay in the main process. When secure storage is available, Electron `safeStorage` encrypts them using OS-backed facilities. The renderer receives key-presence and storage-status information, not the stored secret.
 
-If secure storage is unavailable, keys remain only in process memory for the current session. Linux backends reported as `basic_text` or `unknown` are not accepted as secure storage. There is no silent plaintext persistence fallback. After restarting, a session-only key must be supplied again.
+If secure storage is unavailable, rejects access, or does not return promptly, a newly entered key remains only in process memory for the current session; the interface shows that status. Native availability, encryption, and decryption calls each have a five-second application wait limit. This does not dismiss or bypass an operating-system permission prompt. A failed read does not delete previously stored ciphertext, and a late native result cannot silently persist a key after timeout or clearing. Linux backends reported as `basic_text` or `unknown` are not accepted as secure storage. There is no plaintext persistence fallback. After restarting, a session-only key must be supplied again.
 
 This does not encrypt the entire workspace. Protect OS credentials, backups, and local access separately.
 
@@ -132,7 +132,7 @@ AI回顾需明确启动，刷新或导入不会触发。发送前可预览范围
 
 密钥留在主进程中。安全存储可用时，Electron `safeStorage` 使用操作系统设施加密；界面只拿到密钥是否存在及存储状态，不获得已保存密钥正文。
 
-安全存储不可用时，只在当前进程内存保留密钥。Linux的`basic_text`或`unknown`后端不当作安全存储，不会静默退回明文保存；重启后需重新输入会话密钥。这不等于整个工作区加密。
+安全存储不可用、拒绝访问或未及时返回时，新输入的密钥只保留在当前进程内存，界面会显示会话存储状态。原生可用性、加密和解密调用各有五秒的应用等待上限；这不会关闭或绕过操作系统权限提示。读取失败不会删除旧密文，超时或清除后的迟到结果也不会悄悄落盘。Linux的`basic_text`或`unknown`后端不当作安全存储，不会退回明文保存；重启后需重新输入会话密钥。这不等于整个工作区加密。
 
 ## 导出、导入与清除
 

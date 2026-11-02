@@ -37,6 +37,7 @@ import {
   terminalScript,
 } from '../core/handoff'
 import { providerDestinationChanged } from '../core/provider-policy'
+import { ProviderKeyStorage } from '../core/key-storage'
 import { assertExportDestination } from '../core/paths'
 import { handoffEnvironment,PARENT_SESSION_VARIABLES } from '../core/launch-environment'
 
@@ -48,6 +49,7 @@ app.setName('Carrythread')
 let window: BrowserWindow | null = null
 let store: Store
 let reviewController: AbortController | null = null
+let providerChangesInFlight = 0
 let scanInFlight: Promise<{
   coverage: Awaited<ReturnType<SourceScanner['scan']>>['coverage']
   sessions: number
@@ -55,6 +57,19 @@ let scanInFlight: Promise<{
 }> | null = null
 const scanner = new SourceScanner()
 const sessionKeys = new Map<string, string>()
+const providerKeys = new ProviderKeyStorage({
+  sessionKeys,
+  readEncrypted: id => store.getSetting<string | null>(`provider.key.${id}`, null),
+  writeEncrypted: (id, value) => store.setSetting(`provider.key.${id}`, value),
+  backend: {
+    available: async () => {
+      const available = await safeStorage.isAsyncEncryptionAvailable()
+      return available && !(process.platform === 'linux' && ['basic_text', 'unknown'].includes(safeStorage.getSelectedStorageBackend()))
+    },
+    encrypt: async key => (await safeStorage.encryptStringAsync(key)).toString('base64'),
+    decrypt: async cipher => (await safeStorage.decryptStringAsync(Buffer.from(cipher, 'base64'))).result,
+  },
+})
 const approvedRoots = new Set<string>()
 const approvedWorkspaces = new Set<string>()
 const agentSchema = z.enum(AGENTS)
@@ -133,39 +148,11 @@ function saveSettings(value: AppSettings): void {
   nativeTheme.themeSource = value.theme
 }
 
-async function secureStorageAvailable(): Promise<boolean> {
-  try {
-    const available=await safeStorage.isAsyncEncryptionAvailable()
-    return available && !(process.platform==='linux'&&['basic_text','unknown'].includes(safeStorage.getSelectedStorageBackend()))
-  } catch {
-    return false
-  }
-}
 async function keyFor(id: string): Promise<string | undefined> {
-  if (sessionKeys.has(id)) return sessionKeys.get(id)
-  const encoded = store.getSetting<string | null>(`provider.key.${id}`, null)
-  if (!encoded || !(await secureStorageAvailable())) return undefined
-  try {
-    return (await safeStorage.decryptStringAsync(Buffer.from(encoded, 'base64'))).result
-  } catch {
-    return undefined
-  }
+  return providerKeys.get(id)
 }
 async function saveKey(id: string, key: string): Promise<void> {
-  sessionKeys.delete(id)
-  if (!key) {
-    store.setSetting(`provider.key.${id}`, null)
-    return
-  }
-  if (await secureStorageAvailable())
-    store.setSetting(
-      `provider.key.${id}`,
-      (await safeStorage.encryptStringAsync(key)).toString('base64'),
-    )
-  else {
-    sessionKeys.set(id, key)
-    store.setSetting(`provider.key.${id}`, null)
-  }
+  return providerKeys.set(id, key)
 }
 function provider(id: string): ProviderConfig {
   const result = settings().providers.find((p) => p.id === id)
@@ -347,14 +334,19 @@ function registerHandlers(): void {
     const p = providerSchema.parse(config)
     validateProvider(p)
     const secret = key === undefined ? undefined : z.string().max(8192).parse(key)
-    const previous = settings().providers.find((existing) => existing.id === p.id)
-    if (secret === undefined && providerDestinationChanged(previous, p)) await saveKey(p.id, '')
-    if (secret !== undefined) await saveKey(p.id, secret)
-    p.hasKey = Boolean(await keyFor(p.id))
-    const value = settings()
-    value.providers = [...value.providers.filter((x) => x.id !== p.id), p]
-    value.activeProviderId ||= p.id
-    saveSettings(value)
+    providerChangesInFlight++
+    try {
+      const previous = settings().providers.find((existing) => existing.id === p.id)
+      if (secret === undefined && providerDestinationChanged(previous, p)) await saveKey(p.id, '')
+      if (secret !== undefined) await saveKey(p.id, secret)
+      p.hasKey = Boolean(await keyFor(p.id))
+      const value = settings()
+      value.providers = [...value.providers.filter((x) => x.id !== p.id), p]
+      value.activeProviderId ||= p.id
+      saveSettings(value)
+    } finally {
+      providerChangesInFlight--
+    }
   })
   register('removeProvider', async (id: unknown) => {
     const key = idSchema.parse(id)
@@ -625,10 +617,10 @@ function registerHandlers(): void {
     return store.importData(JSON.parse(await readFile(result.filePaths[0], 'utf8')))
   })
   register('clearLocalData', async () => {
-    if (scanInFlight || reviewController) throw new Error('OPERATION_IN_PROGRESS')
+    if (scanInFlight || reviewController || providerChangesInFlight > 0) throw new Error('OPERATION_IN_PROGRESS')
     const previous = settings()
+    providerKeys.clearSessionKeys()
     store.clearAll()
-    sessionKeys.clear()
     scanner.clear()
     approvedRoots.clear()
     approvedWorkspaces.clear()
@@ -705,5 +697,6 @@ app.on('window-all-closed', () => {
 })
 app.on('before-quit', () => {
   reviewController?.abort()
+  providerKeys.clearSessionKeys()
   store?.close()
 })

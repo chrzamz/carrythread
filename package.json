@@ -71,6 +71,7 @@
     "asar": true,
     "mac": {
       "category": "public.app-category.productivity",
+      "identity": "-",
       "target": [
         "dmg",
         "zip"
