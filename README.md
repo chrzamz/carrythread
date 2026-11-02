@@ -10,7 +10,7 @@ Carrythread is a local desktop workspace for people working across AI agents and
 
 A completed response is not always a completed delivery. Carrythread keeps creation, testing, publication, and acceptance distinct, with evidence you can inspect and state you can correct.
 
-> **v0.1.0 is under release validation.** Source setup is available below. A local macOS source end-to-end run has passed with a synthetic localhost provider; it did not start a native agent. Live-provider checks, packaged builds, other platform runtime checks, and signing are tracked separately in the [release checklist](docs/RELEASE-CHECKLIST.md). Do not assume a download or a signed build exists until it appears in [Releases](https://github.com/chrzamz/carrythread/releases).
+> **v0.1.0 is under release validation.** Source setup is available below. Local macOS source E2E and recorded core checks have passed at the checkpoints listed in the release ledger. The final local checks passed 109/109 tests, typecheck, build, and real Electron E2E including a model omitting the continuation ID; latest-head cross-platform builds are still pending. Direct-provider HTTP, installer, native-target, and signing evidence are tracked separately in the [release checklist](docs/RELEASE-CHECKLIST.md). Do not assume a download or a signed build exists until it appears in [Releases](https://github.com/chrzamz/carrythread/releases).
 
 ## What it does
 
@@ -18,7 +18,7 @@ A completed response is not always a completed delivery. Carrythread keeps creat
 - **Review actual work:** selected evidence becomes work items with decisions, current stage, uncertainties, completion criteria, and a next action.
 - **Keep the evidence:** source excerpts, message references, dates, and coverage gaps remain visible.
 - **Correct the record:** edit, merge, or split items. Manual overrides and paused or cancelled work are protected during later reviews.
-- **Continue with context:** preview a handoff, choose a destination and working directory, then use the available open, resume, CLI, or manual-copy path.
+- **Continue with context:** preview a registered handoff, choose a destination and working directory, then open, resume, launch, or copy using the available path. Re-import the resulting conversation to connect matching follow-up work to the original item.
 - **Keep control of data:** local SQLite storage, explicit AI requests, your provider key or local model, and portable workspace exports without provider keys.
 
 The interface and public website include **English, Simplified Chinese, Spanish, and Japanese**. Source text remains in its original language; AI review descriptions use the selected output language.
@@ -46,12 +46,20 @@ pnpm site:build  # Prepare the static website
 
 Packaging targets are macOS DMG/ZIP, Windows NSIS/portable, and Linux AppImage/DEB. A configured target is not proof it was built or tested. Consult the [platform matrix](docs/RELEASE-CHECKLIST.md#platform-evidence) for actual results. Running a local package command does not sign, notarize, or publish an artifact automatically.
 
+## Installing a published build
+
+The project remains pre-release. Use these steps only for artifacts that actually appear in [Releases](https://github.com/chrzamz/carrythread/releases), and check the architecture, SHA-256, verification notes, and signing status there.
+
+- **macOS:** the current package declares macOS 13.0 or later; checks on the development machine and CI macOS 15 do not cover every OS version. Open the downloaded DMG and drag Carrythread into Applications. An unsigned/not-notarized build may be blocked on first launch. After verifying the source and checksum, macOS may offer **System Settings → Privacy & Security → Open Anyway** for that specific app. No global Gatekeeper disablement is required or recommended.
+- **Windows:** download the matching NSIS setup executable and follow its installer. An unsigned build may trigger a publisher or SmartScreen warning; it does not carry a verified publisher signature. Inspect the official release and checksum before deciding to proceed. Portable-wrapper verification is listed separately.
+- **Linux:** use the published DEB on a compatible Debian/Ubuntu system, through its package installer or `sudo apt install ./downloaded-package.deb` with the actual downloaded filename. AppImage runtime and normal sandboxed startup have their own verification status; CI's test-only `--no-sandbox` is not an installation instruction.
+
 ## First review
 
 1. Open **Sources**. Detect known local history locations or explicitly select a source directory/file. Enable only what you intend to import.
 2. Refresh sources and inspect the coverage report. Partial, inaccessible, unsupported, and empty sources are different states.
 3. Open **AI connections**. Choose a preset or custom endpoint, enter a model and your key if needed, and run the synthetic connection test.
-4. Choose **Review with AI**, inspect the conversation selection and provider, then start. Preview the selected scope before sending. Selected messages and associated existing work-item context are sent for reconciliation.
+4. Choose **Review with AI**, preview the selected scope and related items, check the conversation selection and provider, then start. Selected messages, available session metadata, and associated existing work-item context are sent for reconciliation; the preview shows the related items.
 5. Review the result. Keep suggestions as candidates, correct an unsupported conclusion, and use evidence before marking a delivery complete.
 6. Prepare a handoff. Confirm the current instruction, target, and working directory, inspect the context file, and launch or copy it using the action shown.
 
@@ -97,11 +105,23 @@ Launching is an explicit action after the preview. Before first starting an agen
 
 Portable context contains source pointers, not copies of every project file. On another computer, make the exported file and relevant project files available and verify the working directory.
 
+### From a local record to a follow-up conversation
+
+The chain is **local record → reviewed work item → registered context package → chosen agent → imported follow-up record**. Copy the complete continuation prompt: its first-line reference identifies a handoff registered in this local Carrythread workspace.
+
+When the new user message is imported, Carrythread checks the marker's handoff ID, item ID, revision, and target against that registry. A valid reference can carry the current original item's decisions into a selected review even when the agent, conversation title, or directory has changed. It does not reopen an older item revision or add the unselected original conversation's messages to the request. New topics in the same conversation are not automatically the same task.
+
+Keep the reference line intact when using the prepared prompt. Missing, altered, unknown, or assistant-quoted markers do not establish this link. The marker is continuity evidence—not new permission, a cryptographic receipt, or proof that the destination read the context file. Inspect the reconciled result and correct it when needed.
+
+When available, session context includes the agent, title, a directory-name project hint, and a normalized workspace hash. This is optional source metadata, not a separate user-facing switch or a global project identity. A full working-directory path is not sent as that dedicated metadata field; message text and handoff files can still contain paths.
+
+Workspace export does not include the local handoff registry. A context file remains readable on another computer, but importing it or a portable workspace alone does not recreate trusted marker associations there.
+
 ## Privacy and local data
 
 Original histories are read-only. Carrythread stores its index, work items, corrections, settings, and prepared handoffs in its own local application-data directory. The workspace database is **not encrypted as a whole**. Provider keys use OS-backed encryption when available, with a session-only fallback instead of plaintext persistence.
 
-AI review is opt-in. Selected evidence and the associated existing work context go to the provider you choose. Local Ollama can keep inference local. Redaction is a safeguard, not complete anonymization: names, project text, source paths, and other sensitive details can still appear in records and exports.
+AI review is opt-in. Selected evidence, available session metadata, and the associated existing work context go to the provider you choose. A registered handoff can associate a new selected conversation with an existing item without uploading the unselected old conversation. Local Ollama can keep inference local. Redaction is a safeguard, not complete anonymization: names, project text, source paths, and other sensitive details can still appear in records and exports.
 
 **Export workspace exports the whole indexed workspace**, including sessions, evidence, items, and their change history. It excludes provider settings/keys and prepared handoff records. Keep exports private. Clearing local Carrythread data does not delete original agent histories, previously exported files, or copies already sent to other tools/providers.
 

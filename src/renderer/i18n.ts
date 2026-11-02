@@ -2,6 +2,7 @@ import type { Locale } from '../core/contracts'
 
 const en = {
   localFirst: 'Local-first',
+  brandSubtitle: 'WORK CONTINUITY',
   tagline: 'Keep the context. Carry the work forward.',
   overview: 'Today',
   work: 'Work',
@@ -24,7 +25,8 @@ const en = {
   allProjects: 'All projects',
   all: 'All',
   open: 'Unfinished',
-  recent: 'Recent changes',
+  recent: 'Recent record updates',
+  updatedAt: 'Record updated',
   unknownDate: 'Date unavailable',
   welcome: 'A clear place to pick up your work.',
   welcomeBody:
@@ -141,6 +143,7 @@ const en = {
   untilDate: 'Through date',
   reviewMessages: '{count} messages in this review',
   reviewBatches: '{count} model requests',
+  relatedWork: 'Includes the recorded state of {count} related work items',
   reviewBody:
     'AI proposes project state from the selected evidence. You can correct it, and every item keeps its sources.',
   outputLanguage: 'Review language',
@@ -204,6 +207,8 @@ const en = {
   saved: 'Saved',
   imported: 'Workspace imported',
   exported: 'Export saved',
+  exportSourceReadOnly:
+    'Choose an export location outside agent histories and Carrythread’s data folder.',
   noChangeHistory: 'No changes recorded yet.',
   operationFailed: 'The operation could not be completed. Your existing records were kept.',
   invalidInput: 'Check the values and try again.',
@@ -231,12 +236,13 @@ const en = {
   handoffPaste: 'Original conversation opened; context copied. Paste it to add the new material.',
   handoffPrefilled: 'New conversation opened with the prompt prepared. Send it there when ready.',
   handoffUnconfirmed:
-    'Terminal launched with the request. Agent receipt and reading are not yet verified.',
+    'The target was opened with this request. Agent receipt and reading are not yet verified.',
   busyError: 'Another operation is running. Wait or cancel it first.',
 } as const
 type Messages = { [K in keyof typeof en]: string }
 const zh: Messages = {
   localFirst: '本地优先',
+  brandSubtitle: '续迹',
   tagline: '接上工作脉络，把事情推进到结果。',
   overview: '今日',
   work: '事项',
@@ -259,7 +265,8 @@ const zh: Messages = {
   allProjects: '全部项目',
   all: '全部',
   open: '未收尾',
-  recent: '近期变化',
+  recent: '记录变化',
+  updatedAt: '记录更新于',
   unknownDate: '日期未知',
   welcome: '从这里，接着把事情做完。',
   welcomeBody:
@@ -370,6 +377,7 @@ const zh: Messages = {
   untilDate: '结束日期',
   reviewMessages: '本次处理 {count} 条消息',
   reviewBatches: '将发起 {count} 次模型请求',
+  relatedWork: '同时携带 {count} 个相关事项的已记录状态',
   reviewBody: 'AI 根据所选证据提出项目状态，你可以修正，每项都保留出处。',
   outputLanguage: '回顾语言',
   selectAll: '全选',
@@ -428,6 +436,7 @@ const zh: Messages = {
   saved: '已保存',
   imported: '工作空间已导入',
   exported: '导出已保存',
+  exportSourceReadOnly: '请选择 Agent 原始历史和续迹数据目录以外的导出位置。',
   noChangeHistory: '尚无变更记录。',
   operationFailed: '操作未能完成，已有记录已保留。',
   invalidInput: '请检查填写内容后重试。',
@@ -453,11 +462,12 @@ const zh: Messages = {
   handoffCopied: '续接提示已复制，请粘贴到选定 Agent。',
   handoffPaste: '原对话已打开，上下文提示已复制，请粘贴以补充材料。',
   handoffPrefilled: '新对话已打开并准备提示，请在目标应用中发送。',
-  handoffUnconfirmed: '终端已携带请求启动，尚未核实 Agent 收到或读取。',
+  handoffUnconfirmed: '目标已携带请求打开，尚未核实 Agent 收到或读取。',
   busyError: '另一项操作正在进行，请等待或先取消。',
 }
 const es: Messages = {
   localFirst: 'Datos locales',
+  brandSubtitle: 'CONTINUIDAD',
   tagline: 'Conserva el contexto. Haz avanzar el trabajo.',
   overview: 'Hoy',
   work: 'Trabajo',
@@ -480,7 +490,8 @@ const es: Messages = {
   allProjects: 'Todos los proyectos',
   all: 'Todo',
   open: 'Pendiente',
-  recent: 'Cambios recientes',
+  recent: 'Cambios del registro',
+  updatedAt: 'Registro actualizado',
   unknownDate: 'Fecha desconocida',
   welcome: 'Un lugar claro para retomar el trabajo.',
   welcomeBody:
@@ -575,7 +586,8 @@ const es: Messages = {
   endpoint: 'URL base de la API',
   model: 'ID del modelo',
   key: 'Clave API',
-  keyHint: 'Deja vacío para conservar la clave de este endpoint. Cambiar dirección o protocolo borra la anterior. No se exporta ni se añade al contexto.',
+  keyHint:
+    'Deja vacío para conservar la clave de este endpoint. Cambiar dirección o protocolo borra la anterior. No se exporta ni se añade al contexto.',
   test: 'Probar conexión',
   testing: 'Probando…',
   noProviders: 'Conecta un modelo para convertir registros en trabajo.',
@@ -594,6 +606,7 @@ const es: Messages = {
   untilDate: 'Hasta',
   reviewMessages: '{count} mensajes en esta revisión',
   reviewBatches: '{count} solicitudes al modelo',
+  relatedWork: 'Incluye el estado registrado de {count} asuntos relacionados',
   reviewBody:
     'La IA propone estados a partir de las pruebas. Puedes corregirlos y consultar sus fuentes.',
   outputLanguage: 'Idioma de la revisión',
@@ -656,6 +669,8 @@ const es: Messages = {
   saved: 'Guardado',
   imported: 'Espacio importado',
   exported: 'Exportación guardada',
+  exportSourceReadOnly:
+    'Elige una ubicación fuera de los historiales de agentes y de los datos de Carrythread.',
   noChangeHistory: 'Sin cambios registrados.',
   operationFailed: 'No se pudo completar la operación. Los registros existentes se conservaron.',
   invalidInput: 'Comprueba los valores e inténtalo otra vez.',
@@ -682,11 +697,12 @@ const es: Messages = {
   handoffPaste: 'Conversación abierta; instrucciones copiadas. Pégalas para añadir el contexto.',
   handoffPrefilled: 'Conversación abierta con el mensaje preparado. Envíalo cuando quieras.',
   handoffUnconfirmed:
-    'Terminal abierto con la solicitud. La recepción y lectura aún no están verificadas.',
+    'Destino abierto con la solicitud. La recepción y lectura aún no están verificadas.',
   busyError: 'Hay otra operación en curso. Espera o cancélala.',
 }
 const ja: Messages = {
   localFirst: 'ローカル優先',
+  brandSubtitle: '仕事のつづき',
   tagline: '文脈を保ち、仕事を次へ。',
   overview: '今日',
   work: '作業',
@@ -709,7 +725,8 @@ const ja: Messages = {
   allProjects: 'すべてのプロジェクト',
   all: 'すべて',
   open: '未完了',
-  recent: '最近の変更',
+  recent: '記録の更新',
+  updatedAt: '記録更新',
   unknownDate: '日時不明',
   welcome: '仕事の続きが、すぐに見つかる。',
   welcomeBody:
@@ -803,7 +820,8 @@ const ja: Messages = {
   endpoint: 'API ベース URL',
   model: 'モデル ID',
   key: 'API キー',
-  keyHint: '空欄なら現在の接続先のキーを保持します。接続先やプロトコル変更時は消去します。キーは出力や文脈に含まれません。',
+  keyHint:
+    '空欄なら現在の接続先のキーを保持します。接続先やプロトコル変更時は消去します。キーは出力や文脈に含まれません。',
   test: '接続をテスト',
   testing: 'テスト中…',
   noProviders: 'モデルを接続し、記録から作業を整理します。',
@@ -821,6 +839,7 @@ const ja: Messages = {
   untilDate: '終了日',
   reviewMessages: '今回のメッセージ：{count}件',
   reviewBatches: 'モデルへのリクエスト：{count}回',
+  relatedWork: '関連する作業 {count}件の記録済み状態を含みます',
   reviewBody: 'AI が根拠から状態を提案します。修正でき、すべての項目に出典が残ります。',
   outputLanguage: '出力言語',
   selectAll: 'すべて選択',
@@ -881,6 +900,7 @@ const ja: Messages = {
   saved: '保存しました',
   imported: '取り込みました',
   exported: '出力しました',
+  exportSourceReadOnly: 'Agent の元の履歴と Carrythread のデータフォルダー以外に出力してください。',
   noChangeHistory: '変更履歴はまだありません。',
   operationFailed: '操作を完了できませんでした。既存の記録は保持されています。',
   invalidInput: '入力値を確認して再試行してください。',
@@ -906,7 +926,7 @@ const ja: Messages = {
   handoffCopied: '指示をコピーしました。選択した Agent に貼り付けてください。',
   handoffPaste: '元の会話を開き、指示をコピーしました。貼り付けて文脈を追加してください。',
   handoffPrefilled: '指示を用意した新しい会話を開きました。準備ができたら送信してください。',
-  handoffUnconfirmed: '依頼を付けてターミナルを起動しました。受信と読み込みは未確認です。',
+  handoffUnconfirmed: '依頼を付けて引き継ぎ先を開きました。受信と読み込みは未確認です。',
   busyError: '別の操作が進行中です。待機するか中止してください。',
 }
 
@@ -940,6 +960,8 @@ const errors: Record<string, MessageKey> = {
   INVALID_INPUT: 'invalidInput',
   STORE_INVALID_INPUT: 'invalidInput',
   SOURCE_REQUIRED: 'sourceRequired',
+  EXPORT_SOURCE_READ_ONLY: 'exportSourceReadOnly',
+  SOURCE_PATH_NOT_APPROVED: 'sourceUnavailable',
   PROVIDER_REQUIRED: 'providerRequired',
   STORE_REVISION_CONFLICT: 'conflict',
   STORE_NOT_FOUND: 'unavailable',
@@ -964,7 +986,9 @@ const errors: Record<string, MessageKey> = {
   HANDOFF_DIRECTORY_MISMATCH: 'handoffDirectory',
   HANDOFF_SESSION_INVALID: 'handoffMismatch',
   HANDOFF_SESSION_ID_INVALID: 'handoffMismatch',
+  HANDOFF_SESSION_NOT_LOCAL: 'noSessionsForTarget',
   HANDOFF_TARGET_MISMATCH: 'handoffMismatch',
+  HANDOFF_TARGET_CHANGED: 'handoffStale',
   HANDOFF_SESSION_MISMATCH: 'handoffMismatch',
   HANDOFF_STALE: 'handoffStale',
   HANDOFF_ALREADY_OPENED: 'handoffOpened',

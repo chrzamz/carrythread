@@ -26,8 +26,9 @@ import type {
 import { AGENTS } from '../core/contracts'
 import { Store } from '../core/store'
 import { discoverSources, SourceScanner } from '../core/sources'
-import { PROVIDER_PRESETS, testConnection } from '../core/ai'
+import { PROVIDER_PRESETS, testConnection, validateProvider } from '../core/ai'
 import { planReviewBatches, runReview } from '../core/review'
+import { buildReviewContext } from '../core/continuity'
 import {
   detectTargets,
   executablePath,
@@ -36,9 +37,12 @@ import {
   terminalScript,
 } from '../core/handoff'
 import { providerDestinationChanged } from '../core/provider-policy'
+import { assertExportDestination } from '../core/paths'
+import { handoffEnvironment,PARENT_SESSION_VARIABLES } from '../core/launch-environment'
 
 const development = !app.isPackaged
-if (development && process.env.CARRYTHREAD_DATA_DIR && isAbsolute(process.env.CARRYTHREAD_DATA_DIR))
+for(const name of PARENT_SESSION_VARIABLES)delete process.env[name]
+if (process.env.CARRYTHREAD_DATA_DIR && isAbsolute(process.env.CARRYTHREAD_DATA_DIR))
   app.setPath('userData', process.env.CARRYTHREAD_DATA_DIR)
 app.setName('Carrythread')
 let window: BrowserWindow | null = null
@@ -130,13 +134,9 @@ function saveSettings(value: AppSettings): void {
 }
 
 async function secureStorageAvailable(): Promise<boolean> {
-  if (
-    process.platform === 'linux' &&
-    ['basic_text', 'unknown'].includes(safeStorage.getSelectedStorageBackend())
-  )
-    return false
   try {
-    return await safeStorage.isAsyncEncryptionAvailable()
+    const available=await safeStorage.isAsyncEncryptionAvailable()
+    return available && !(process.platform==='linux'&&['basic_text','unknown'].includes(safeStorage.getSelectedStorageBackend()))
   } catch {
     return false
   }
@@ -171,6 +171,28 @@ function provider(id: string): ProviderConfig {
   const result = settings().providers.find((p) => p.id === id)
   if (!result) throw new Error('PROVIDER_REQUIRED')
   return result
+}
+
+async function nativeTargets() {
+  const targets = await detectTargets()
+  for (const target of targets) {
+    if (target.agent !== 'codex' && target.agent !== 'finch') continue
+    try {
+      const name = app.getApplicationNameForProtocol(
+        target.agent === 'codex' ? 'codex://threads/new' : 'finch://chat',
+      )
+      if (name) {
+        target.installed = true
+        target.kind = 'desktop'
+        target.openExisting = true
+        target.newWithContext = true
+        target.appendExisting = false
+      }
+    } catch {
+      /* Keep the detected CLI or manual fallback. */
+    }
+  }
+  return targets
 }
 
 function register(channel: string, handler: (...args: any[]) => unknown): void {
@@ -233,7 +255,7 @@ async function scan(): Promise<{
 
 function launchDetached(executable: string, args: string[]): Promise<void> {
   return new Promise((resolve, reject) => {
-    const child = spawn(executable, args, { detached: true, stdio: 'ignore', shell: false })
+    const child = spawn(executable, args, { detached: true, stdio: 'ignore', shell: false, env:handoffEnvironment(process.env) })
     child.once('error', () => reject(new Error('HANDOFF_LAUNCH_FAILED')))
     child.once('spawn', () => {
       child.unref()
@@ -293,13 +315,37 @@ function registerHandlers(): void {
   register('session', (id: unknown) => store.getSession(idSchema.parse(id)))
   register('search', (query: unknown) => store.search(z.string().min(1).max(500).parse(query), 100))
   register('providerPresets', () => PROVIDER_PRESETS)
-  register('previewReview', (input:unknown) => {
-    const request=z.object({sessionIds:z.array(idSchema).min(1).max(1000),since:z.string().optional(),until:z.string().optional()}).parse(input)
-    const plan=planReviewBatches({messages:store.getMessages(request.sessionIds),since:request.since,until:request.until})
-    return {batches:plan.batches.length,totalMessages:plan.totalMessages,eligibleMessages:plan.eligibleMessages,omittedMessages:plan.omittedMessages}
+  register('previewReview', (input: unknown) => {
+    const request = z
+      .object({
+        sessionIds: z.array(idSchema).min(1).max(1000),
+        since: z.string().optional(),
+        until: z.string().optional(),
+      })
+      .parse(input)
+    const messages=store.getMessages(request.sessionIds)
+    const plan = planReviewBatches({
+      messages,
+      since: request.since,
+      until: request.until,
+    })
+    const existing=store.listItems()
+    const context=buildReviewContext(messages,store.listSessions(),store.listHandoffs(),existing)
+    const selectedSessions=new Set(plan.batches.flatMap(batch=>batch.map(m=>m.sessionId)))
+    const linked=new Set(context.sessionContext.filter(c=>selectedSessions.has(c.sessionId)).flatMap(c=>c.linkedItemIds))
+    const related=existing.filter(item=>linked.has(item.id)||item.evidence.some(ref=>selectedSessions.has(ref.sessionId)))
+    return {
+      batches: plan.batches.length,
+      totalMessages: plan.totalMessages,
+      eligibleMessages: plan.eligibleMessages,
+      omittedMessages: plan.omittedMessages,
+      relatedItems: related.length,
+      relatedTitles: related.map(item=>item.title),
+    }
   })
   register('saveProvider', async (config: unknown, key?: unknown) => {
     const p = providerSchema.parse(config)
+    validateProvider(p)
     const secret = key === undefined ? undefined : z.string().max(8192).parse(key)
     const previous = settings().providers.find((existing) => existing.id === p.id)
     if (secret === undefined && providerDestinationChanged(previous, p)) await saveKey(p.id, '')
@@ -338,12 +384,13 @@ function registerHandlers(): void {
     const id = randomUUID(),
       timestamp = new Date().toISOString()
     try {
+      const messages=store.getMessages(request.sessionIds)
+      const existingItems=store.listItems()
+      const context=buildReviewContext(messages,store.listSessions(),store.listHandoffs(),existingItems)
       const result = await runReview({
-        messages: store.getMessages(request.sessionIds, {
-          since: request.since,
-          until: request.until,
-        }),
-        existingItems: store.listItems(),
+        messages,
+        existingItems,
+        sessionContext:context.sessionContext,
         provider: config,
         key: await keyFor(config.id),
         locale: request.locale,
@@ -412,10 +459,11 @@ function registerHandlers(): void {
       z.array(z.string().min(1).max(300)).min(2).max(10).parse(titles),
     ),
   )
-  register('targets', detectTargets)
+  register('targets', nativeTargets)
   register('prepareHandoff', async (input: unknown) => {
     const request: HandoffRequest = z
       .object({
+        locale: z.enum(['en', 'zh-CN', 'es', 'ja']).optional(),
         itemId: idSchema,
         target: agentSchema,
         mode: z.enum(['new', 'resume']),
@@ -425,6 +473,7 @@ function registerHandlers(): void {
         includeEvidence: z.boolean(),
       })
       .parse(input)
+    request.locale ||= settings().locale
     const item = store.getItem(request.itemId)
     if (!item) throw new Error('STORE_NOT_FOUND')
     const ids = [
@@ -436,12 +485,20 @@ function registerHandlers(): void {
     const sessions = ids
       .map((id) => store.getSession(id))
       .filter((s): s is NonNullable<typeof s> => Boolean(s))
+    if(request.mode==='resume'){
+      const destination=sessions.find(s=>s.id===request.sessionId)
+      const source=destination&&settings().sources.find(s=>s.id===destination.sourceId&&s.agent===destination.agent)
+      if(!source||!destination||!(await stat(destination.sourcePath).catch(()=>null))?.isFile())throw new Error('HANDOFF_SESSION_NOT_LOCAL')
+    }
     const pkg = await prepareHandoff(
       request,
       item,
       sessions,
       join(app.getPath('userData'), 'handoffs'),
     )
+    const capability = (await nativeTargets()).find((t) => t.agent === pkg.target)!
+    pkg.launchKind = capability.kind
+    pkg.startsExecution = capability.installed ? launchPlan(pkg, capability).startsExecution : false
     store.saveHandoff(pkg)
     return pkg
   })
@@ -452,7 +509,8 @@ function registerHandlers(): void {
       throw new Error('HANDOFF_ALREADY_OPENED')
     const item = store.getItem(pkg.itemId)
     if (!item || item.revision !== pkg.revision) throw new Error('HANDOFF_STALE')
-    const capability = (await detectTargets()).find((t) => t.agent === pkg.target)!
+    const capability = (await nativeTargets()).find((t) => t.agent === pkg.target)!
+    if (pkg.launchKind !== capability.kind) throw new Error('HANDOFF_TARGET_CHANGED')
     const plan = launchPlan(pkg, capability)
     try {
       if (
@@ -519,6 +577,11 @@ function registerHandlers(): void {
       filters: [{ name: 'Markdown', extensions: ['md'] }],
     })
     if (result.canceled || !result.filePath) return null
+    await assertExportDestination(
+      result.filePath,
+      [...settings().sources.map((s) => s.path), ...store.listSessions().map((s) => s.sourcePath)],
+      app.getPath('userData'),
+    )
     await writeFile(result.filePath, pkg.content, { mode: 0o600 })
     return result.filePath
   })
@@ -543,6 +606,11 @@ function registerHandlers(): void {
       filters: [{ name: 'JSON', extensions: ['json'] }],
     })
     if (result.canceled || !result.filePath) return null
+    await assertExportDestination(
+      result.filePath,
+      [...settings().sources.map((s) => s.path), ...store.listSessions().map((s) => s.sourcePath)],
+      app.getPath('userData'),
+    )
     await writeFile(result.filePath, JSON.stringify(store.exportData(), null, 2), { mode: 0o600 })
     return result.filePath
   })
@@ -610,7 +678,9 @@ app.whenReady().then(async () => {
   await mkdir(app.getPath('userData'), { recursive: true, mode: 0o700 })
   store = new Store(join(app.getPath('userData'), 'carrythread.db'))
   settings().sources.forEach((s) => approvedRoots.add(s.path))
-  store.getSetting<string[]>('handoff.approvedWorkspaces', []).forEach((path) => approvedWorkspaces.add(path))
+  store
+    .getSetting<string[]>('handoff.approvedWorkspaces', [])
+    .forEach((path) => approvedWorkspaces.add(path))
   nativeTheme.themeSource = settings().theme
   registerHandlers()
   await createWindow()
@@ -624,6 +694,11 @@ app.whenReady().then(async () => {
   app.on('activate', () => {
     if (!window) void createWindow()
   })
+}).catch(()=>{
+  const locale=app.getLocale().toLowerCase()
+  const message=locale.startsWith('zh')?'无法打开续迹的本地工作空间。请保留数据文件，关闭其他实例后重试。原始 Agent 历史没有被修改。':locale.startsWith('es')?'No se pudo abrir el espacio local. Conserva los archivos de datos, cierra otras instancias y vuelve a intentarlo. Los historiales originales no se modificaron.':locale.startsWith('ja')?'ローカル作業空間を開けませんでした。データを保管し、ほかの起動中のアプリを閉じて再試行してください。元の Agent 履歴は変更していません。':'The local workspace could not be opened. Keep the data files, close other instances, and try again. Original agent histories were not changed.'
+  dialog.showErrorBox('Carrythread',message)
+  app.quit()
 })
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit()

@@ -1,4 +1,13 @@
-import { cloneElement, isValidElement, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
+import {
+  cloneElement,
+  isValidElement,
+  useCallback,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import type { FormEvent, ReactElement, ReactNode } from 'react'
 import {
   ArrowDownToLine,
@@ -112,14 +121,24 @@ function Button({
 }
 function Field({ label, children, hint }: { label: string; children: ReactNode; hint?: string }) {
   const hintId = useId()
-  const control = isValidElement(children) && typeof children.type === 'string' && ['input', 'select', 'textarea'].includes(children.type)
-    ? cloneElement(children as ReactElement<{ 'aria-label'?: string; 'aria-describedby'?: string }>, { 'aria-label': label, ...(hint ? { 'aria-describedby': hintId } : {}) })
-    : children
+  const control =
+    isValidElement(children) &&
+    typeof children.type === 'string' &&
+    ['input', 'select', 'textarea'].includes(children.type)
+      ? cloneElement(
+          children as ReactElement<{ 'aria-label'?: string; 'aria-describedby'?: string }>,
+          { 'aria-label': label, ...(hint ? { 'aria-describedby': hintId } : {}) },
+        )
+      : children
   return (
     <label className="field">
       <span>{label}</span>
       {control}
-      {hint && <small id={hintId} aria-hidden="true">{hint}</small>}
+      {hint && (
+        <small id={hintId} aria-hidden="true">
+          {hint}
+        </small>
+      )}
     </label>
   )
 }
@@ -191,6 +210,7 @@ function Modal({
 
 export default function App() {
   const [snapshot, setSnapshot] = useState<AppSnapshot | null>(null)
+  const [appVersion, setAppVersion] = useState('')
   const [view, setView] = useState<View>('overview')
   const [project, setProject] = useState('all')
   const [filter, setFilter] = useState('open')
@@ -236,8 +256,15 @@ export default function App() {
   )
   useEffect(() => {
     refresh().catch((e) => setNotice({ text: errorText(e, 'en'), error: true }))
+    void api.version().then(setAppVersion)
   }, [refresh])
-  useEffect(() => api.onChange(() => { void refresh().catch(()=>undefined) }), [refresh])
+  useEffect(
+    () =>
+      api.onChange(() => {
+        void refresh().catch(() => undefined)
+      }),
+    [refresh],
+  )
   useEffect(() => setChecked([]), [project])
   useEffect(() => {
     document.documentElement.lang = locale
@@ -295,6 +322,8 @@ export default function App() {
     await refresh()
   }
   const openItem = (item: WorkItem) => {
+    setProject(item.project)
+    setFilter('all')
     setSelected(item.id)
     setView('work')
   }
@@ -330,7 +359,7 @@ export default function App() {
           <Mark />
           <div>
             <strong>Carrythread</strong>
-            <small>{locale === 'zh-CN' ? '续迹' : 'WORK CONTINUITY'}</small>
+            <small>{t('brandSubtitle')}</small>
           </div>
         </div>
         <nav aria-label={t('work')}>
@@ -354,6 +383,7 @@ export default function App() {
             className={`project-nav ${project === 'all' ? 'chosen' : ''}`}
             onClick={() => {
               setProject('all')
+              setSelected(null)
               setView('work')
             }}
           >
@@ -366,6 +396,7 @@ export default function App() {
               className={`project-nav ${project === p.name ? 'chosen' : ''}`}
               onClick={() => {
                 setProject(p.name)
+                setSelected(null)
                 setView('work')
               }}
             >
@@ -396,13 +427,18 @@ export default function App() {
             <span>{t(view)}</span>
           </div>
           <div className="topbar-actions">
-            <button
-              className="icon-button"
+            <select
+              className="locale-switch"
               aria-label={t('language')}
-              onClick={() => void setSettings({ locale: locale === 'en' ? 'zh-CN' : 'en' })}
+              value={locale}
+              onChange={(e) => void setSettings({ locale: e.target.value as Locale })}
             >
-              {locale === 'en' ? '中' : 'EN'}
-            </button>
+              {languages.map((l) => (
+                <option key={l.id} value={l.id}>
+                  {l.name}
+                </option>
+              ))}
+            </select>
             <Button
               disabled={!!busy || !snapshot.settings.sources.some((s) => s.enabled)}
               onClick={() => void run('scan', () => api.scan())}
@@ -531,7 +567,7 @@ export default function App() {
                             >
                               <span className="timeline-dot" />
                               <div>
-                                <small>{formatDate(item.updatedAt, locale)}</small>
+                                <small>{t('updatedAt')} · {formatDate(item.updatedAt, locale)}</small>
                                 <strong>{item.title}</strong>
                                 <p>{item.stage}</p>
                               </div>
@@ -610,7 +646,7 @@ export default function App() {
                         <p>{item.stage}</p>
                         <div>
                           <Badge item={item} t={t} />
-                          <small>{formatDate(item.updatedAt, locale)}</small>
+                          <small>{t('updatedAt')} · {formatDate(item.updatedAt, locale)}</small>
                         </div>
                       </button>
                       <ChevronRight size={15} />
@@ -722,7 +758,12 @@ export default function App() {
                       })}
                     </details>
                     <div className="detail-actions">
-                      <Button onClick={() => setEditItem(current)}>
+                      <Button
+                        onClick={() => {
+                          setNotice(null)
+                          setEditItem(current)
+                        }}
+                      >
                         <Settings2 size={14} />
                         {t('edit')}
                       </Button>
@@ -1055,6 +1096,9 @@ export default function App() {
                 <section className="settings-section">
                   <h3>{t('about')}</h3>
                   <p>Carrythread · 续迹</p>
+                  <p>
+                    {t('version')} {appVersion}
+                  </p>
                   <p>{t('tagline')}</p>
                   <div className="actions">
                     <Button
@@ -1088,6 +1132,9 @@ export default function App() {
           onDone={async () => {
             await refresh()
             setView('work')
+            setProject('all')
+            setFilter('all')
+            setSelected(null)
             setNotice({ text: t('reviewFinished') })
           }}
           onError={(e) => setNotice({ text: errorText(e, locale), error: true })}
@@ -1097,6 +1144,7 @@ export default function App() {
         <EditDialog
           item={editItem}
           t={t}
+          formError={notice?.error ? notice.text : ''}
           onClose={() => setEditItem(null)}
           onSave={async (changes) => {
             const saved = await run(
@@ -1134,7 +1182,41 @@ export default function App() {
                 </small>
                 <p>{change.reason}</p>
                 <Badge item={change.after} t={t} />
-                {current && current.id === change.itemId && current.revision !== change.after.revision && <Button onClick={()=>void run('restore',async()=>{const prior=change.after;await api.patchItem({id:current.id,expectedRevision:current.revision,changes:{project:prior.project,title:prior.title,state:prior.state,stage:prior.stage,summary:prior.summary,nextAction:prior.nextAction,completionCriteria:prior.completionCriteria,decisions:prior.decisions,uncertainties:prior.uncertainties,note:prior.note},reason:t('restoreReason',{revision:prior.revision})});setHistory(null)},'saved')}>{t('restoreRevision')}</Button>}
+                {current &&
+                  current.id === change.itemId &&
+                  current.revision !== change.after.revision && (
+                    <Button
+                      onClick={() =>
+                        void run(
+                          'restore',
+                          async () => {
+                            const prior = change.after
+                            await api.patchItem({
+                              id: current.id,
+                              expectedRevision: current.revision,
+                              changes: {
+                                project: prior.project,
+                                title: prior.title,
+                                state: prior.state,
+                                stage: prior.stage,
+                                summary: prior.summary,
+                                nextAction: prior.nextAction,
+                                completionCriteria: prior.completionCriteria,
+                                decisions: prior.decisions,
+                                uncertainties: prior.uncertainties,
+                                note: prior.note,
+                              },
+                              reason: t('restoreReason', { revision: prior.revision }),
+                            })
+                            setHistory(null)
+                          },
+                          'saved',
+                        )
+                      }
+                    >
+                      {t('restoreRevision')}
+                    </Button>
+                  )}
               </div>
             ))
           ) : (
@@ -1254,11 +1336,14 @@ function AISettings({
   const [presets, setPresets] = useState<ProviderPreset[]>([]),
     [editing, setEditing] = useState<ProviderConfig | null>(null),
     [secret, setSecret] = useState(''),
-    [testResult, setTestResult] = useState<{ id: string; text: string; ok: boolean } | null>(null)
+    [testResult, setTestResult] = useState<{ id: string; text: string; ok: boolean } | null>(null),
+    [saveError, setSaveError] = useState(''),
+    [savingProvider, setSavingProvider] = useState(false)
   useEffect(() => {
     void api.providerPresets().then(setPresets)
   }, [])
   const newProvider = () => {
+    setSaveError('')
     const p = presets[0]
     setEditing({
       id: crypto.randomUUID(),
@@ -1369,20 +1454,33 @@ function AISettings({
         />
       )}
       {editing && (
-        <Modal title={t('addProvider')} t={t} onClose={() => setEditing(null)}>
+        <Modal
+          title={t('addProvider')}
+          t={t}
+          onClose={() => {
+            if (!savingProvider) {
+              setEditing(null)
+              setSecret('')
+            }
+          }}
+        >
           <form
             onSubmit={(e) => {
               e.preventDefault()
-              void run(
-                'saveProvider',
-                async () => {
+              setSaveError('')
+              setSavingProvider(true)
+              void (async () => {
+                try {
                   await api.saveProvider(editing, secret.trim() || undefined)
                   await refresh()
                   setEditing(null)
                   setSecret('')
-                },
-                'saved',
-              )
+                } catch (error) {
+                  setSaveError(errorText(error, locale))
+                } finally {
+                  setSavingProvider(false)
+                }
+              })()
             }}
           >
             <Field label={t('preset')}>
@@ -1466,11 +1564,16 @@ function AISettings({
               />
             </Field>
             <div className="actions">
-              <Button type="submit" primary disabled={!!busy}>
+              <Button type="submit" primary disabled={!!busy || savingProvider}>
                 {t('save')}
               </Button>
               <Button onClick={() => setEditing(null)}>{t('cancel')}</Button>
             </div>
+            {saveError && (
+              <p role="alert" className="form-error">
+                {saveError}
+              </p>
+            )}
           </form>
         </Modal>
       )}
@@ -1496,36 +1599,73 @@ function ReviewDialog({
   const [ids, setIds] = useState(snapshot.sessions.map((s) => s.id)),
     [providerId, setProviderId] = useState(snapshot.settings.activeProviderId || ''),
     [running, setRunning] = useState(false),
-    [scopeRoot,setScopeRoot] = useState('all'),
-    [scopeAgent,setScopeAgent] = useState('all'),
-    [fromDate,setFromDate] = useState(()=>{const d=new Date();d.setDate(d.getDate()-7);return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`}),
-    [untilDate,setUntilDate] = useState(()=>{const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`}),
-    [preview,setPreview] = useState<Awaited<ReturnType<typeof api.previewReview>>|null>(null),
-    [previewError,setPreviewError] = useState('')
-  const range=useMemo(()=>{
-    const convert=(value:string,end:boolean)=>{if(!value)return undefined;const d=new Date(`${value}T00:00:00`);if(Number.isNaN(d.getTime()))return value;if(end)d.setHours(23,59,59,999);return d.toISOString()}
-    return {since:convert(fromDate,false),until:convert(untilDate,true)}
-  },[fromDate,untilDate])
-  const visibleSessions=snapshot.sessions.filter(s=>(scopeRoot==='all'||s.cwd===scopeRoot)&&(scopeAgent==='all'||s.agent===scopeAgent))
-  const roots=[...new Set(snapshot.sessions.map(s=>s.cwd).filter(Boolean))].sort()
-  const scope=(root:string,agent:string)=>{setScopeRoot(root);setScopeAgent(agent);setIds(snapshot.sessions.filter(s=>(root==='all'||s.cwd===root)&&(agent==='all'||s.agent===agent)).map(s=>s.id))}
-  useEffect(()=>{
-    let active=true;setPreview(null);setPreviewError('')
-    if(!ids.length)return
-    api.previewReview({sessionIds:ids,...range}).then(result=>{if(active)setPreview(result)}).catch(e=>{if(active)setPreviewError(errorText(e,locale))})
-    return()=>{active=false}
-  },[ids,range,locale,snapshot.coverage])
+    [scopeRoot, setScopeRoot] = useState('all'),
+    [scopeAgent, setScopeAgent] = useState('all'),
+    [fromDate, setFromDate] = useState(() => {
+      const d = new Date()
+      d.setDate(d.getDate() - 7)
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+    }),
+    [untilDate, setUntilDate] = useState(() => {
+      const d = new Date()
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+    }),
+    [preview, setPreview] = useState<Awaited<ReturnType<typeof api.previewReview>> | null>(null),
+    [previewError, setPreviewError] = useState('')
+  const [runError, setRunError] = useState('')
+  const range = useMemo(() => {
+    const convert = (value: string, end: boolean) => {
+      if (!value) return undefined
+      const d = new Date(`${value}T00:00:00`)
+      if (Number.isNaN(d.getTime())) return value
+      if (end) d.setHours(23, 59, 59, 999)
+      return d.toISOString()
+    }
+    return { since: convert(fromDate, false), until: convert(untilDate, true) }
+  }, [fromDate, untilDate])
+  const visibleSessions = snapshot.sessions.filter(
+    (s) =>
+      (scopeRoot === 'all' || s.cwd === scopeRoot) &&
+      (scopeAgent === 'all' || s.agent === scopeAgent),
+  )
+  const roots = [...new Set(snapshot.sessions.map((s) => s.cwd).filter(Boolean))].sort()
+  const scope = (root: string, agent: string) => {
+    setScopeRoot(root)
+    setScopeAgent(agent)
+    setIds(
+      snapshot.sessions
+        .filter((s) => (root === 'all' || s.cwd === root) && (agent === 'all' || s.agent === agent))
+        .map((s) => s.id),
+    )
+  }
+  useEffect(() => {
+    let active = true
+    setPreview(null)
+    setPreviewError('')
+    if (!ids.length) return
+    api
+      .previewReview({ sessionIds: ids, ...range })
+      .then((result) => {
+        if (active) setPreview(result)
+      })
+      .catch((e) => {
+        if (active) setPreviewError(errorText(e, locale))
+      })
+    return () => {
+      active = false
+    }
+  }, [ids, range, locale, snapshot.coverage])
   const config = snapshot.settings.providers.find((p) => p.id === providerId),
-    local =
-      config &&
-      /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(?::|\/|$)/.test(config.baseUrl)
+    local = config && /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(?::|\/|$)/.test(config.baseUrl)
   const start = async () => {
     setRunning(true)
+    setRunError('')
     try {
       await api.review({ sessionIds: ids, providerId, locale, ...range })
       await onDone()
       onClose()
     } catch (e) {
+      setRunError(errorText(e, locale))
       onError(e)
     } finally {
       setRunning(false)
@@ -1556,12 +1696,52 @@ function ReviewDialog({
         </select>
       </Field>
       <div className="form-grid">
-        <Field label={t('workingDirectory')}><select disabled={running} value={scopeRoot} onChange={e=>scope(e.target.value,scopeAgent)}><option value="all">{t('allProjects')}</option>{roots.map(root=><option value={root} key={root}>{root}</option>)}</select></Field>
-        <Field label={t('sources')}><select disabled={running} value={scopeAgent} onChange={e=>scope(scopeRoot,e.target.value)}><option value="all">{t('all')}</option>{AGENTS.map(agent=><option value={agent} key={agent}>{agentName(agent)}</option>)}</select></Field>
+        <Field label={t('workingDirectory')}>
+          <select
+            disabled={running}
+            value={scopeRoot}
+            onChange={(e) => scope(e.target.value, scopeAgent)}
+          >
+            <option value="all">{t('allProjects')}</option>
+            {roots.map((root) => (
+              <option value={root} key={root}>
+                {root}
+              </option>
+            ))}
+          </select>
+        </Field>
+        <Field label={t('sources')}>
+          <select
+            disabled={running}
+            value={scopeAgent}
+            onChange={(e) => scope(scopeRoot, e.target.value)}
+          >
+            <option value="all">{t('all')}</option>
+            {AGENTS.map((agent) => (
+              <option value={agent} key={agent}>
+                {agentName(agent)}
+              </option>
+            ))}
+          </select>
+        </Field>
       </div>
       <div className="form-grid">
-        <Field label={t('fromDate')}><input type="date" disabled={running} value={fromDate} onChange={e=>setFromDate(e.target.value)}/></Field>
-        <Field label={t('untilDate')}><input type="date" disabled={running} value={untilDate} onChange={e=>setUntilDate(e.target.value)}/></Field>
+        <Field label={t('fromDate')}>
+          <input
+            type="date"
+            disabled={running}
+            value={fromDate}
+            onChange={(e) => setFromDate(e.target.value)}
+          />
+        </Field>
+        <Field label={t('untilDate')}>
+          <input
+            type="date"
+            disabled={running}
+            value={untilDate}
+            onChange={(e) => setUntilDate(e.target.value)}
+          />
+        </Field>
       </div>
       <div className="selection-tools">
         <span>{t('selected', { count: ids.length })}</span>
@@ -1596,8 +1776,29 @@ function ReviewDialog({
           </label>
         ))}
       </div>
-      {preview&&<p className="review-preview-counts">{t('reviewMessages',{count:preview.eligibleMessages})} · {t('reviewBatches',{count:preview.batches})}{preview.omittedMessages>0&&<span className="warning-text"> · {preview.omittedMessages} {t('skipped')}</span>}</p>}
-      {previewError&&<p role="alert" className="form-error">{previewError}</p>}
+      {preview && (
+        <p className="review-preview-counts">
+          {t('reviewMessages', { count: preview.eligibleMessages })} ·{' '}
+          {t('reviewBatches', { count: preview.batches })}
+          {preview.omittedMessages > 0 && (
+            <span className="warning-text">
+              {' '}
+              · {preview.omittedMessages} {t('skipped')}
+            </span>
+          )}
+        </p>
+      )}
+      {previewError && (
+        <p role="alert" className="form-error">
+          {previewError}
+        </p>
+      )}
+      {preview&&preview.relatedItems>0&&<details className="review-related"><summary>{t('relatedWork',{count:preview.relatedItems})}</summary><ul>{preview.relatedTitles.map((title,index)=><li key={index}>{title}</li>)}</ul></details>}
+      {runError && (
+        <p role="alert" className="form-error">
+          {runError}
+        </p>
+      )}
       <div className="privacy-callout">
         <ShieldCheck size={18} />
         <p>
@@ -1610,7 +1811,9 @@ function ReviewDialog({
       <div className="actions">
         <Button
           primary
-          disabled={running || !ids.length || !providerId || !preview?.eligibleMessages || !!previewError}
+          disabled={
+            running || !ids.length || !providerId || !preview?.eligibleMessages || !!previewError
+          }
           onClick={() => void start()}
         >
           {running ? <LoaderCircle className="spin" size={15} /> : <Sparkles size={15} />}{' '}
@@ -1627,11 +1830,13 @@ function ReviewDialog({
 function EditDialog({
   item,
   t,
+  formError,
   onClose,
   onSave,
 }: {
   item: WorkItem
   t: T
+  formError: string
   onClose: () => void
   onSave: (data: { values: Record<string, unknown>; reason: string }) => Promise<void>
 }) {
@@ -1653,7 +1858,20 @@ function EditDialog({
     e.preventDefault()
     setSaving(true)
     try {
-      await onSave({ values: {...values, decisions:values.decisions.split('\n').map(v=>v.trim()).filter(Boolean),uncertainties:values.uncertainties.split('\n').map(v=>v.trim()).filter(Boolean)}, reason })
+      await onSave({
+        values: {
+          ...values,
+          decisions: values.decisions
+            .split('\n')
+            .map((v) => v.trim())
+            .filter(Boolean),
+          uncertainties: values.uncertainties
+            .split('\n')
+            .map((v) => v.trim())
+            .filter(Boolean),
+        },
+        reason,
+      })
     } finally {
       setSaving(false)
     }
@@ -1710,7 +1928,14 @@ function EditDialog({
             </Field>
           ),
         )}
-        {(['decisions','uncertainties'] as const).map(key=><Field label={t(key)} key={key}><textarea value={values[key]} onChange={e=>setValues({...values,[key]:e.target.value})}/></Field>)}
+        {(['decisions', 'uncertainties'] as const).map((key) => (
+          <Field label={t(key)} key={key}>
+            <textarea
+              value={values[key]}
+              onChange={(e) => setValues({ ...values, [key]: e.target.value })}
+            />
+          </Field>
+        ))}
         <Field label={t('reason')}>
           <textarea
             required
@@ -1725,6 +1950,11 @@ function EditDialog({
           </Button>
           <Button onClick={onClose}>{t('cancel')}</Button>
         </div>
+        {formError && (
+          <p role="alert" className="form-error">
+            {formError}
+          </p>
+        )}
       </form>
     </Modal>
   )
@@ -1786,6 +2016,7 @@ function HandoffDialog({
 }) {
   const [targets, setTargets] = useState<TargetCapability[]>([]),
     [request, setRequest] = useState<HandoffRequest>({
+      locale,
       itemId: item.id,
       target: 'codex',
       mode: 'new',
@@ -1799,7 +2030,7 @@ function HandoffDialog({
     void api.targets().then(setTargets)
   }, [])
   const capability = targets.find((t) => t.agent === request.target),
-    sessions = snapshot.sessions.filter((s) => s.agent === request.target)
+    sessions = snapshot.sessions.filter((s) => s.agent === request.target && snapshot.settings.sources.some(source=>source.id===s.sourceId&&source.agent===s.agent))
   const action = async (fn: () => Promise<HandoffPackage>) => {
     setBusy(true)
     setError('')
@@ -1874,8 +2105,33 @@ function HandoffDialog({
           )}
           <Field label={t('workingDirectory')}>
             <div className="directory-field">
-              <input aria-label={t('workingDirectory')} readOnly value={request.cwd || ''} placeholder={snapshot.sessions.find((s) => item.evidence.some((e) => e.sessionId === s.id))?.cwd || ''}/>
-              <Button onClick={()=>void api.chooseWorkspace(request.cwd || snapshot.sessions.find((s)=>item.evidence.some(e=>e.sessionId===s.id))?.cwd).then(path=>{if(path)setRequest({...request,cwd:path})}).catch(e=>setError(errorText(e,locale)))}><FolderOpen size={15}/>{t('chooseWorkspace')}</Button>
+              <input
+                aria-label={t('workingDirectory')}
+                readOnly
+                value={request.cwd || ''}
+                placeholder={
+                  snapshot.sessions.find((s) => item.evidence.some((e) => e.sessionId === s.id))
+                    ?.cwd || ''
+                }
+              />
+              <Button
+                onClick={() =>
+                  void api
+                    .chooseWorkspace(
+                      request.cwd ||
+                        snapshot.sessions.find((s) =>
+                          item.evidence.some((e) => e.sessionId === s.id),
+                        )?.cwd,
+                    )
+                    .then((path) => {
+                      if (path) setRequest({ ...request, cwd: path })
+                    })
+                    .catch((e) => setError(errorText(e, locale)))
+                }
+              >
+                <FolderOpen size={15} />
+                {t('chooseWorkspace')}
+              </Button>
             </div>
           </Field>
           <Field label={t('instruction')}>
@@ -1933,8 +2189,7 @@ function HandoffDialog({
             >
               {busy ? <LoaderCircle className="spin" size={15} /> : <ArrowUpRight size={15} />}{' '}
               {t(
-                capability?.kind === 'terminal' ||
-                  (request.target === 'finch' && request.mode === 'new')
+                pkg.startsExecution
                   ? 'executeTarget'
                   : request.target === 'generic'
                     ? 'copyContext'

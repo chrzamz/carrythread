@@ -191,6 +191,7 @@ export interface AppSnapshot {
   reviews: ReviewRun[]
 }
 export interface HandoffRequest {
+  locale?: Locale
   itemId: string
   target: AgentKind
   mode: 'new' | 'resume'
@@ -200,6 +201,8 @@ export interface HandoffRequest {
   includeEvidence: boolean
 }
 export interface HandoffPackage {
+  launchKind?: 'desktop' | 'terminal' | 'manual'
+  startsExecution?: boolean
   id: string
   itemId: string
   revision: number
@@ -244,7 +247,14 @@ export interface CarrythreadAPI {
   removeProvider(id: string): Promise<void>
   testProvider(id: string): Promise<ConnectionResult>
   providerPresets(): Promise<ProviderPreset[]>
-  previewReview(request: Pick<ReviewRequest,'sessionIds'|'since'|'until'>): Promise<{batches:number;totalMessages:number;eligibleMessages:number;omittedMessages:number}>
+  previewReview(request: Pick<ReviewRequest, 'sessionIds' | 'since' | 'until'>): Promise<{
+    batches: number
+    totalMessages: number
+    eligibleMessages: number
+    omittedMessages: number
+    relatedItems: number
+    relatedTitles: string[]
+  }>
   review(request: ReviewRequest): Promise<ReviewRun>
   cancelReview(): Promise<void>
   patchItem(patch: ItemPatch): Promise<WorkItem>

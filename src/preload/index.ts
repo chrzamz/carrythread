@@ -4,7 +4,11 @@ import type { CarrythreadAPI } from '../core/contracts'
 const invoke = (method: string, ...args: unknown[]) =>
   ipcRenderer.invoke(`carrythread:${method}`, ...args)
 const api: CarrythreadAPI = {
-  onChange: (listener) => { const callback = () => listener(); ipcRenderer.on('carrythread:changed', callback); return () => ipcRenderer.removeListener('carrythread:changed', callback) },
+  onChange: (listener) => {
+    const callback = () => listener()
+    ipcRenderer.on('carrythread:changed', callback)
+    return () => ipcRenderer.removeListener('carrythread:changed', callback)
+  },
   snapshot: () => invoke('snapshot'),
   chooseSource: (agent) => invoke('chooseSource', agent),
   chooseWorkspace: (current) => invoke('chooseWorkspace', current),

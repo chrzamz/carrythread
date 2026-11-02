@@ -350,6 +350,7 @@ svg {
   gap: 9px;
   flex-wrap: wrap;
 }
+.locale-switch { max-width:110px;font-size:11px;padding:7px 8px;background:transparent;-webkit-app-region:no-drag }
 .button {
   display: inline-flex;
   gap: 7px;
@@ -1226,8 +1227,16 @@ svg {
   margin-top: 7px;
   line-height: 1.6;
 }
-.directory-field { display:flex;gap:8px;align-items:center }
-.directory-field input { flex:1;min-width:0;font-size:12px }
+.directory-field {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.directory-field input {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+}
 .form-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -1321,7 +1330,13 @@ svg {
   align-items: center;
   font-size: 12px;
 }
-.review-preview-counts { font-size:12px;color:var(--muted);margin-top:12px }
+.review-preview-counts {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 12px;
+}
+.review-related {font-size:12px;color:var(--muted);margin-top:12px}
+.review-related summary {cursor:pointer}
 .selection-tools > span {
   margin-right: auto;
   color: var(--muted);

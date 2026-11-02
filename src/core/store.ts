@@ -5,6 +5,7 @@ import { DatabaseSync } from 'node:sqlite'
 import { AGENTS, type AgentSession, type AppSettings, type AppSnapshot, type HandoffPackage, type ItemChange, type ItemPatch, type ReviewResult, type ReviewRun, type ScanResult, type SourceMessage, type WorkItem, type WorkItemDraft } from './contracts'
 import { redactText } from './privacy'
 import { assertEvidence, isRecord, validateWorkItemDraft } from './ai/validation'
+import { buildReviewContext, workspaceKeyFor, workspacesDisjoint } from './continuity'
 
 export type StoreErrorCode = 'STORE_REVISION_CONFLICT' | 'STORE_NOT_FOUND' | 'STORE_INVALID_INPUT' | 'STORE_MIGRATION_UNSUPPORTED'
 export class StoreError extends Error {
@@ -17,7 +18,7 @@ const json = (value: unknown) => JSON.stringify(value)
 const parse = <T>(row: Row | undefined): T | null => row ? JSON.parse(String(row.data)) as T : null
 const unique = <T>(values: T[]) => [...new Set(values)]
 const limitNumber = (value: number | undefined, fallback: number, max: number) => Math.min(max, Math.max(1, Math.trunc(value ?? fallback)))
-const validId = (value: unknown): value is string => typeof value === 'string' && /^[\w:.-]{1,500}$/.test(value)
+const validId = (value: unknown): value is string => typeof value === 'string' && /^[\w:.-]{1,500}$/.test(value) && redactText(value).redactions === 0
 function requireId(id: unknown): asserts id is string { if (!validId(id)) throw new StoreError('STORE_INVALID_INPUT') }
 function requireText(value: unknown, max = 10_000, empty = false): asserts value is string {
   if (typeof value !== 'string' || value.length > max || value.includes('\0') || (!empty && !value.trim())) throw new StoreError('STORE_INVALID_INPUT')
@@ -281,10 +282,22 @@ export class Store {
     return this.transaction(() => {
       const changed: WorkItem[] = []
       const updated = new Set<string>()
+      const metadata = new Map(this.listSessions().map(session => [session.id, session]))
+      const workspaceFor = (sessionId: string) => workspaceKeyFor(metadata.get(sessionId)?.cwd ?? '')
+      const compatible = (draft: WorkItemDraft, item: WorkItem): boolean => {
+        if (!workspacesDisjoint(item.evidence.map(ref => workspaceFor(ref.sessionId)), draft.evidence.map(ref => workspaceFor(ref.sessionId)))) return true
+        const handoffs = this.listHandoffs()
+        if (!handoffs.length) return false
+        const incomingIds = [...new Set(draft.evidence.map(ref => ref.sessionId))]
+        const incomingSessions = incomingIds.map(id => metadata.get(id)).filter((session): session is Omit<AgentSession, 'messages'> => Boolean(session))
+        const context = buildReviewContext(this.getMessages(incomingIds), incomingSessions, handoffs, [item])
+        return context.sessionContext.some(session => session.linkedItemIds.includes(item.id))
+      }
       for (const draft of drafts) {
         // Exact-title duplicate protection only; semantic merging belongs to the review.
-        const same = !draft.existingId ? this.listItems().find(item => item.project === draft.project && item.title === draft.title && item.evidence.some(ref => draft.evidence.some(candidate => candidate.messageId === ref.messageId))) : undefined
+        const same = !draft.existingId ? this.listItems().find(item => item.project === draft.project && item.title === draft.title && item.evidence.some(ref => draft.evidence.some(candidate => candidate.messageId === ref.messageId)) && compatible(draft, item)) : undefined
         const before = draft.existingId ? this.requireItem(draft.existingId) : same
+        if (before && !compatible(draft, before)) throw new StoreError('STORE_INVALID_INPUT')
         if (!before) { changed.push(this.create(draft, 'ai', 'review')); continue }
         if (updated.has(before.id)) throw new StoreError('STORE_INVALID_INPUT')
         updated.add(before.id)

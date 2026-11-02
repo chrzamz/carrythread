@@ -25,13 +25,23 @@ The expected project-site path is `/carrythread/`. Asset paths are relative. `sc
 | `windows-2025` | Windows x64 NSIS + portable |
 | `ubuntu-24.04` | Linux x64 AppImage + DEB |
 
-Node 24 and the pnpm version from `packageManager` are used. A version tag must match `package.json`. Each build uploads installers, target-specific SHA-256 sums, and a JSON record of the exact commit and tested/unverified surfaces.
+Node 24 and the pnpm version from `packageManager` are used. A version tag must match `package.json`. After packaging, each native runner discovers the actual unpacked application instead of assuming a filename: macOS uses the app bundle Info.plist; Windows/Linux inspect builder output and match the configured application name. That executable is passed through `CARRYTHREAD_EXECUTABLE` to the same real-Electron E2E with a fresh isolated profile and synthetic localhost provider. Linux uses Xvfb; the test driver adds `--no-sandbox` only for isolated CI Linux tests. This does not verify sandboxed production startup.
+
+Only after packaged GUI E2E succeeds does the job upload installers, SHA-256 sums, and a JSON build record. `sourceE2E`, `packagedE2E`, and `installerInstallation` are separate fields; macOS has source and packaged runs, while Windows/Linux have packaged runs. Synthetic screenshots are separate diagnostic artifacts.
 
 **These initial artifacts are unsigned distributions, without configured developer-identity signing or notarization.** The workflow disables identity auto-discovery and does not consume signing secrets. Embedded platform/runtime ad-hoc signatures are not claimed as developer signing. Adding verified signing is a separate release-engineering change.
 
 Tag pushes and ordinary manual runs upload Actions artifacts only. They do not create or publish a GitHub release. A manual run may explicitly set `create_draft: true` and an existing tag; only then does the final job receive `contents: write` and create a draft after verifying checksums and consistent build commits. It refuses to overwrite an existing release. It never publishes the draft automatically.
 
-Clean installer testing, Windows/Linux GUI behavior, live external-provider calls, and actual native-agent receipt are not established by packaging alone. Complete `docs/RELEASE-CHECKLIST.md` before making a draft public.
+The unpacked packaged executable gets a GUI test first. Then a separate installer path runs on every native target:
+
+- macOS: mount the actual DMG read-only, copy its application with `ditto` into an owned `RUNNER_TEMP` directory, locate the binary through `Info.plist`, run E2E from that copy, and detach/remove it.
+- Windows: run the actual NSIS setup with `/S` and a final unquoted `/D=` pointing to an owned temporary directory. Locate the installed executable and uninstaller, run E2E, then uninstall with `/S` and final `_?=` so cleanup waits for the uninstaller. This follows the [NSIS command-line rules](https://nsis.sourceforge.io/Docs/Chapter3.html#installerusage).
+- Linux: read the DEB package name, refuse to replace a preinstalled package, install the actual DEB with `apt-get`, locate its package-owned main executable using `dpkg-query -L`, run E2E under Xvfb, then purge that package.
+
+The installed executable must differ from the unpacked path. Cleanup runs even after a failed test. Install, installed-app GUI E2E, and cleanup must all succeed before `installerInstallation.status` becomes `passed` and distribution artifacts are uploaded. The draft job checks all four records again. Source, unpacked, and installed screenshots remain separate.
+
+These are controlled CI-runner installation checks, not a promise about every end-user setup. Gatekeeper/SmartScreen/quarantine prompts, AppImage runtime, the Windows portable wrapper, live external-provider calls, production Linux sandbox startup, and actual native-agent receipt remain explicit limits. Complete `docs/RELEASE-CHECKLIST.md` before making a draft public.
 
 Linux DEB packaging needs project homepage and author email or an explicit `linux.maintainer`; use approved public metadata, not a private account address.
 
@@ -58,4 +68,4 @@ Pages构建只读取代码与Pages元信息，部署任务才获得`pages: write
 
 发布构建提供macOS arm64/x64、Windows x64、Linux x64四目标。默认只上传Actions安装包、SHA-256和真实构建记录；tag推送不会自动创建Release。只有手动明确勾选`create_draft`并指定已有匹配版本tag，才创建草稿，绝不自动公开或覆盖已有Release。
 
-初始构建明确为未配置开发者身份签名、未公证，不使用签名secret；平台运行时可能存在的临时签名不等于正式签名。打包通过不能代替干净设备安装、Windows/Linux界面、真实外部模型与目标Agent收件验收。完成发布清单后，再由负责人决定公开。
+初始构建明确为未配置开发者身份签名、未公证，不使用签名secret；平台运行时可能存在的临时签名不等于正式签名。四个目标打包后都会从实际产物定位程序，再以隔离数据和本地合成HTTP模型运行GUI端到端；Linux使用Xvfb，no-sandbox仅用于CI合成测试，不能证明生产沙箱启动。sourceE2E、packagedE2E与installerInstallation分别记录。随后单独实际挂DMG并复制应用、NSIS静默装到临时目录、apt安装DEB；从安装结果定位与unpacked不同的程序跑GUI端到端，再卸载/清理。安装、GUI与清理三步都成功才将installerInstallation标passed。不能据此声称已验收最终用户的Gatekeeper/SmartScreen、AppImage运行或Windows portable包装程序。真实外部模型与目标Agent收件也仍需单独验证。完成发布清单后，再由负责人决定公开。

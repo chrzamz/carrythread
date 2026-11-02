@@ -172,6 +172,8 @@ test('untrusted import rejects arbitrary URL paths, settings, and fake evidence 
     assert.throws(() => target.importData(badPath), StoreError)
     const badEvidence = structuredClone(original); badEvidence.items[0].evidence[0].messageId = 'invented'
     assert.throws(() => target.importData(badEvidence), StoreError)
+    const secretId = structuredClone(original); secretId.items[0].id = 'sk-synthetic-only-key-1234567890abcdef'
+    assert.throws(() => target.importData(secretId), (error: unknown) => error instanceof StoreError && error.code === 'STORE_INVALID_INPUT')
     assert.equal(target.listSessions().length, 0)
   } finally { db.close(); target.close() }
 })

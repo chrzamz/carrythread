@@ -1,10 +1,11 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import type { ProviderConfig, ProviderProtocol, SourceMessage, WorkItem } from '../src/core/contracts'
+import type { AgentSession, HandoffPackage, ProviderConfig, ProviderProtocol, SourceMessage, WorkItem } from '../src/core/contracts'
 import { AIError } from '../src/core/ai/errors'
 import { parseReviewOutput } from '../src/core/ai/validation'
 import { planReviewBatches, runReview, selectReviewMessages } from '../src/core/review'
 import { Store } from '../src/core/store'
+import { buildReviewContext } from '../src/core/continuity'
 
 const messages = (): SourceMessage[] => [
   { id: 'm-old', sessionId: 's-one', role: 'assistant', text: 'Suggestion: perhaps build a new product. The fee is not decided.', timestamp: '2026-10-01T01:00:00Z', sourcePath: '/synthetic/source.jsonl' },
@@ -211,6 +212,144 @@ test('review does not upload unlinked manual items or items from unselected sess
     return providerResponse('openai', { items: [] })
   })
   await runReview({ messages: messages(), existingItems: [unlinked, unrelated], provider: provider(), locale: 'en' })
+})
+
+test('verified handoff restores omitted existingId for a renamed cross-agent proposal', async t => {
+  const oldItem = { ...wire(), id: 'existing-work', createdAt: '', updatedAt: '', reviewedAt: '', revision: 3, manualOverride: false, note: '', evidence: [{ messageId: 'previous-evidence', sessionId: 'previous-session', quote: 'Earlier work.' }], decisions: ['Previously confirmed decision must be retained.'] } as unknown as WorkItem
+  const privateItem = { ...oldItem, id: 'private-work', evidence: [], summary: 'PRIVATE_UNLINKED_ITEM_CONTENT' }
+  const handoffId = '11111111-2222-4333-8444-555555555555'
+  const pkg: HandoffPackage = { id: handoffId, itemId: oldItem.id, revision: 2, target: 'claude', mode: 'new', cwd: '/synthetic/old-workspace', path: '/synthetic/handoff.md', content: '', prompt: '', createdAt: '2026-10-01T00:00:00Z', status: 'opened' }
+  const message: SourceMessage = { id: 'continuation-message', sessionId: 'renamed-session', role: 'user', text: `<!-- carrythread handoff=${handoffId} item=${oldItem.id} revision=2 -->\nContinue the existing device checks.`, timestamp: '2026-10-04T00:00:00Z', sourcePath: '/synthetic/claude.jsonl' }
+  const session = { id: message.sessionId, agent: 'claude' as const, title: 'A very different session title', cwd: '/synthetic/new-private-workspace' }
+  const context = buildReviewContext([message], [session], [pkg], [oldItem, privateItem])
+  t.mock.method(globalThis, 'fetch', async (_url: URL, options: RequestInit) => {
+    const body = JSON.parse(String(options.body))
+    const prompt = String(body.messages[1].content)
+    const metadata = JSON.parse(prompt.split('SESSION_CONTEXT:\n')[1].split('\n\nEXISTING_ITEMS')[0])
+    const existing = JSON.parse(prompt.split('EXISTING_ITEMS:\n')[1].split('\n\nAVAILABLE_MESSAGES')[0])
+    assert.deepEqual(metadata[0].linkedItemIds, [oldItem.id])
+    assert.deepEqual(metadata[0].handoffLinks, [{ messageId: message.id, itemId: oldItem.id }])
+    assert.equal(metadata[0].agent, 'claude')
+    assert.equal(metadata[0].title, session.title)
+    assert.ok(!prompt.includes(session.cwd) && !prompt.includes('PRIVATE_UNLINKED_ITEM_CONTENT'))
+    assert.equal(existing.length, 1)
+    assert.equal(existing[0].id, oldItem.id)
+    assert.ok(existing[0].decisions.includes('Previously confirmed decision must be retained.'))
+    return providerResponse('openai', { items: [{ ...wire(), title: 'Follow up on the device check', evidence: [{ messageId: message.id, sessionId: message.sessionId, quote: 'Continue the existing device checks.' }] }] })
+  })
+  const result = await runReview({ messages: [message], existingItems: [oldItem, privateItem], provider: provider(), locale: 'en', sessionContext: context.sessionContext })
+  assert.equal(result.items.length, 1)
+  assert.equal(result.items[0].existingId, oldItem.id)
+})
+
+test('metadata for an unselected session cannot bring its linked private item into the request', async t => {
+  const hidden = { ...wire(), id: 'hidden-item', createdAt: '', updatedAt: '', reviewedAt: '', revision: 1, manualOverride: true, note: '', evidence: [], summary: 'HIDDEN_LINKED_ITEM_CONTENT' } as unknown as WorkItem
+  t.mock.method(globalThis, 'fetch', async (_url: URL, options: RequestInit) => {
+    const body = String(options.body)
+    assert.ok(!body.includes('HIDDEN_LINKED_ITEM_CONTENT'))
+    assert.ok(!body.includes('Unselected private session title'))
+    return providerResponse('openai', { items: [] })
+  })
+  await runReview({ messages: messages(), existingItems: [hidden], provider: provider(), locale: 'en', sessionContext: [{ sessionId: 'unselected-session', agent: 'claude', title: 'Unselected private session title', workspaceKey: null, projectHint: null, linkedItemIds: [hidden.id] }] })
+})
+
+function linkedConversationFixture() {
+  const item = { ...wire(), id: 'linked-work', createdAt: '', updatedAt: '', reviewedAt: '', revision: 1, manualOverride: false, note: '', evidence: [{ messageId: 'older-message', sessionId: 'older-session', quote: 'Original work.' }] } as unknown as WorkItem
+  const handoffId = '11111111-2222-4333-8444-555555555555'
+  const handoff: HandoffPackage = { id: handoffId, itemId: item.id, revision: 1, target: 'claude', mode: 'new', cwd: '/synthetic/workspace', path: '/synthetic/package.md', content: '', prompt: '', createdAt: '2026-10-01T00:00:00Z', status: 'opened' }
+  const markerMessage: SourceMessage = { id: 'marker-request', sessionId: 'linked-session', role: 'user', text: `<!-- carrythread handoff=${handoffId} item=${item.id} revision=1 -->\nContinue the registered work.`, timestamp: '2026-10-02T00:00:00Z', sourcePath: '/synthetic/continuation.jsonl' }
+  const laterMessage: SourceMessage = { ...markerMessage, id: 'later-topic', text: 'Prepare a separate welcome email draft.', timestamp: '2026-10-03T00:00:00Z' }
+  const session = { id: markerMessage.sessionId, agent: 'claude' as const, title: 'Several topics', cwd: '/synthetic/workspace' }
+  return { item, handoff, markerMessage, laterMessage, session }
+}
+
+test('later unrelated topics in a linked session are not automatically bound to its original item', async t => {
+  const { item, handoff, markerMessage, laterMessage, session } = linkedConversationFixture()
+  const selected = [markerMessage, laterMessage]
+  const context = buildReviewContext(selected, [session], [handoff], [item])
+  t.mock.method(globalThis, 'fetch', async () => providerResponse('openai', { items: [{ ...wire(), title: 'Separate welcome draft', evidence: [{ messageId: laterMessage.id, sessionId: laterMessage.sessionId, quote: laterMessage.text }] }] }))
+  const result = await runReview({ messages: selected, existingItems: [item], provider: provider(), locale: 'en', sessionContext: context.sessionContext })
+  assert.equal(result.items.length, 1)
+  assert.equal(result.items[0].existingId, undefined)
+  assert.equal(result.items[0].title, 'Separate welcome draft')
+})
+
+test('marker-message mappings outside the eligible time range are not transmitted or used for inference', async t => {
+  const { item, handoff, markerMessage, laterMessage, session } = linkedConversationFixture()
+  const selected = [markerMessage, laterMessage]
+  const context = buildReviewContext(selected, [session], [handoff], [item])
+  t.mock.method(globalThis, 'fetch', async (_url: URL, options: RequestInit) => {
+    const body = JSON.parse(String(options.body))
+    const prompt = String(body.messages[1].content)
+    const metadata = JSON.parse(prompt.split('SESSION_CONTEXT:\n')[1].split('\n\nEXISTING_ITEMS')[0])
+    assert.deepEqual(metadata[0].handoffLinks, [])
+    assert.ok(!prompt.includes(markerMessage.id))
+    return providerResponse('openai', { items: [{ ...wire(), title: 'Separate welcome draft', evidence: [{ messageId: laterMessage.id, sessionId: laterMessage.sessionId, quote: laterMessage.text }] }] })
+  })
+  const result = await runReview({ messages: selected, existingItems: [item], provider: provider(), locale: 'en', since: laterMessage.timestamp!, sessionContext: context.sessionContext })
+  assert.equal(result.items[0].existingId, undefined)
+  assert.equal(result.processedMessages, 1)
+})
+
+test('a model-supplied existingId conflicting with a directly cited verified handoff is rejected', async t => {
+  const { item, handoff, markerMessage, laterMessage, session } = linkedConversationFixture()
+  const other = { ...item, id: 'other-visible-item', title: 'Another item', evidence: [{ messageId: laterMessage.id, sessionId: laterMessage.sessionId, quote: laterMessage.text }] }
+  const selected = [markerMessage, laterMessage]
+  const context = buildReviewContext(selected, [session], [handoff], [item, other])
+  t.mock.method(globalThis, 'fetch', async () => providerResponse('openai', { items: [{ ...wire(), existingId: other.id, evidence: [{ messageId: markerMessage.id, sessionId: markerMessage.sessionId, quote: markerMessage.text }] }] }))
+  await assert.rejects(runReview({ messages: selected, existingItems: [item, other], provider: provider(), locale: 'en', sessionContext: context.sessionContext }), (error: unknown) => error instanceof AIError && error.code === 'invalid_evidence')
+})
+
+test('two proposals cannot silently compete for the same verified handoff item', async t => {
+  const { item, handoff, markerMessage, session } = linkedConversationFixture()
+  const context = buildReviewContext([markerMessage], [session], [handoff], [item])
+  t.mock.method(globalThis, 'fetch', async () => providerResponse('openai', { items: ['First renamed proposal', 'Second renamed proposal'].map(title => ({ ...wire(), title, evidence: [{ messageId: markerMessage.id, sessionId: markerMessage.sessionId, quote: markerMessage.text }] })) }))
+  await assert.rejects(runReview({ messages: [markerMessage], existingItems: [item], provider: provider(), locale: 'en', sessionContext: context.sessionContext }), (error: unknown) => error instanceof AIError && error.code === 'invalid_evidence')
+})
+
+test('same project and title from disjoint workspaces remain separate through review and store', async t => {
+  const data: SourceMessage[] = [
+    { ...messages()[2], id: 'workspace-message-a', sessionId: 'workspace-session-a', text: 'Check the first client deployment.' },
+    { ...messages()[2], id: 'workspace-message-b', sessionId: 'workspace-session-b', text: 'Check the second client deployment.' },
+  ]
+  const sessions: AgentSession[] = data.map((message, index) => ({ id: message.sessionId, sourceId: `workspace-source-${index}`, nativeId: `workspace-native-${index}`, agent: 'generic', title: 'Identical conversation title', cwd: `/synthetic/client-${index}/app`, sourcePath: message.sourcePath, startedAt: message.timestamp, updatedAt: message.timestamp, messages: [message] }))
+  const context = buildReviewContext(data, sessions, [], [])
+  t.mock.method(globalThis, 'fetch', async () => providerResponse('openai', { items: data.map(message => ({ ...wire(), project: 'App', title: 'Check deployment', evidence: [{ messageId: message.id, sessionId: message.sessionId, quote: message.text }] })) }))
+  const result = await runReview({ messages: data, existingItems: [], provider: provider(), locale: 'en', sessionContext: context.sessionContext })
+  assert.equal(result.items.length, 2)
+  const db = new Store(':memory:')
+  try {
+    db.upsertSessions({ sessions, coverage: [] })
+    db.applyReview(result)
+    assert.equal(db.listItems().length, 2)
+  } finally { db.close() }
+})
+
+test('store requires a registered handoff before a cross-workspace existingId update', () => {
+  const db = new Store(':memory:')
+  try {
+    const oldMessage = { ...messages()[2], id: 'source-before', sessionId: 'session-before', text: 'Please check the original report.' }
+    const oldSession: AgentSession = { id: oldMessage.sessionId, sourceId: 'original-source', nativeId: 'original-native', agent: 'codex', title: 'Original', cwd: '/synthetic/old-project', sourcePath: oldMessage.sourcePath, startedAt: oldMessage.timestamp, updatedAt: oldMessage.timestamp, messages: [oldMessage] }
+    db.upsertSessions({ sessions: [oldSession], coverage: [] })
+    const { origin: _origin, ...oldDraft } = { ...wire(), state: 'verify' as const, confidence: 'uncertain' as const, evidence: [{ messageId: oldMessage.id, sessionId: oldMessage.sessionId, quote: oldMessage.text }] }
+    const item = db.createItem(oldDraft, 'ai')
+    const handoffId = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee'
+    const nextMessage: SourceMessage = { ...messages()[2], id: 'source-after', sessionId: 'session-after', text: `<!-- carrythread handoff=${handoffId} item=${item.id} revision=1 -->\nContinue the original report.` }
+    const nextSession: AgentSession = { ...oldSession, id: nextMessage.sessionId, sourceId: 'next-source', nativeId: 'next-native', agent: 'claude', title: 'New title', cwd: '/synthetic/new-project', messages: [nextMessage] }
+    db.upsertSessions({ sessions: [nextSession], coverage: [] })
+    const result = { items: [{ ...oldDraft, existingId: item.id, evidence: [{ messageId: nextMessage.id, sessionId: nextMessage.sessionId, quote: 'Continue the original report.' }] }], provider: 'mock', model: 'synthetic', processedMessages: 1, omittedMessages: 0 }
+    assert.throws(() => db.applyReview(result))
+    assert.equal(db.getItem(item.id)?.revision, 1)
+    const pkg: HandoffPackage = { id: handoffId, itemId: item.id, revision: 1, target: 'pi', mode: 'new', cwd: nextSession.cwd, path: '/synthetic/package.md', content: '', prompt: '', createdAt: '2026-10-02T00:00:00Z', status: 'opened' }
+    db.saveHandoff(pkg)
+    assert.throws(() => db.applyReview(result), 'A wrong target must not grant a cross-workspace link')
+    db.saveHandoff({ ...pkg, target: 'claude' })
+    const updated = db.applyReview(result)
+    assert.equal(updated.length, 1)
+    assert.equal(updated[0].id, item.id)
+    assert.equal(db.listItems().length, 1)
+    assert.equal(updated[0].evidence.length, 2)
+  } finally { db.close() }
 })
 
 for (const protocol of ['openai', 'anthropic', 'ollama'] as const) {

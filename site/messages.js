@@ -162,7 +162,7 @@ export const messages = {
         },
         {
           "title": "Continue with context.",
-          "body": "Prepare a handoff with the goal, confirmed decisions, current state, and source references. Preview it before choosing the next tool.",
+          "body": "Preview the decisions and unfinished work, continue in your chosen agent, then import the follow-up conversation. Bring its progress back to the original item without organizing everything again.",
           "tags": [
             "Preview before sharing",
             "Capability-aware handoff"
@@ -295,6 +295,10 @@ export const messages = {
         {
           "q": "Which languages and builds are available?",
           "a": "This website is available in English, Simplified Chinese, Spanish, and Japanese. App translations, OS builds, signing status, and tested adapters are listed with each release."
+        },
+        {
+          "q": "What connects a later conversation to the same work?",
+          "a": "Keep the complete continuation prompt so Carrythread can recognize the handoff when you import the next conversation. This connection belongs to the current local workspace; exporting your work does not transfer it. Opening an agent does not confirm that it has read the material."
         }
       ]
     },
@@ -484,7 +488,7 @@ export const messages = {
         },
         {
           "title": "带着上下文继续。",
-          "body": "将目标、已确认决定、当前状态和来源整理成交接材料。先预览，再选择接下来使用的工具。",
+          "body": "预览已确认的决定和未完事项，交给选定 Agent，再读取后续对话。把新的进展接回原事项，不必重新整理一遍。",
           "tags": [
             "分享前可预览",
             "如实显示交接能力"
@@ -617,6 +621,10 @@ export const messages = {
         {
           "q": "有哪些语言和安装包？",
           "a": "本站提供英语、简体中文、西班牙语和日语。应用翻译、系统安装包、签名状态及已测试适配器会在每次发布时列明。"
+        },
+        {
+          "q": "换了 Agent，如何接回同一件事？",
+          "a": "保留完整的接续提示，导入后续对话时，Carrythread 就能识别这次交接。这种关联保存在当前本地工作区，导出事项不会一并转移；打开 Agent 也不代表它已读到材料。"
         }
       ]
     },
@@ -806,7 +814,7 @@ export const messages = {
         },
         {
           "title": "Continúa con contexto.",
-          "body": "Prepara un traspaso con el objetivo, las decisiones confirmadas, el estado y las referencias. Revísalo antes de elegir la siguiente herramienta.",
+          "body": "Revisa las decisiones y el trabajo pendiente, continúa en el agente elegido e importa la conversación posterior. Devuelve el progreso al asunto original sin organizarlo todo de nuevo.",
           "tags": [
             "Vista previa al compartir",
             "Capacidades claras"
@@ -939,6 +947,10 @@ export const messages = {
         {
           "q": "¿Qué idiomas y paquetes están disponibles?",
           "a": "La web está en inglés, chino simplificado, español y japonés. Cada versión detalla las traducciones de la app, los paquetes por sistema, las firmas y los adaptadores probados."
+        },
+        {
+          "q": "¿Cómo se conecta una conversación posterior al mismo trabajo?",
+          "a": "Conserva el mensaje completo para que Carrythread reconozca el traspaso al importar la siguiente conversación. La conexión pertenece al espacio local actual; exportar el trabajo no la transfiere. Abrir un agente no confirma que haya leído el material."
         }
       ]
     },
@@ -1128,7 +1140,7 @@ export const messages = {
         },
         {
           "title": "文脈を持って再開する。",
-          "body": "目標、確認済みの決定、現在の状態、参照元を引き継ぎ資料に。内容を確認してから次のツールを選びます。",
+          "body": "確認済みの決定と未完了の作業を確認し、選んだエージェントで再開します。続きの会話を取り込めば、新しい進捗を元の仕事につなげられます。整理し直す必要はありません。",
           "tags": [
             "共有前のプレビュー",
             "実際の連携範囲を表示"
@@ -1261,6 +1273,10 @@ export const messages = {
         {
           "q": "対応言語と配布物は？",
           "a": "このサイトは英語、簡体字中国語、スペイン語、日本語で利用できます。アプリの翻訳、OSごとの配布物、署名状況、検証済みアダプターは各リリースに記載します。"
+        },
+        {
+          "q": "別の会話でも同じ仕事に戻れるのはなぜ？",
+          "a": "再開用のメッセージを全文のまま使うと、次の会話を取り込む際に引き継ぎを識別できます。この関連付けは現在のローカル作業空間に保存され、作業の書き出しでは移りません。エージェントを開いただけでは、資料を読んだ確認にはなりません。"
         }
       ]
     },

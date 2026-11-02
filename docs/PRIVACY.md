@@ -28,19 +28,29 @@ System/developer and reasoning blocks are not presented as work evidence. Suppor
 |---|---|---|
 | Refresh local sources | No network request by the importer | Local filesystem / local index |
 | Test AI connection | A short synthetic test prompt and configured API credentials | The selected provider endpoint |
-| Run an AI review | Bounded selected message text, roles, dates, evidence IDs, plus existing work items linked to the selected conversations for reconciliation | The selected provider endpoint |
+| Run an AI review | Bounded selected text, roles, dates and evidence IDs; available selected-session metadata; existing work items linked by evidence or a locally registered handoff | The selected provider endpoint |
 | Use localhost Ollama | Review data sent to the local Ollama process | Local service; check any model/service configuration separately |
-| Open or launch a handoff | A prepared context-file path and current instruction; some paths also copy a prompt to the OS clipboard | Chosen native application or CLI, which may then process it using its own provider settings |
+| Open or launch a handoff | A registered reference marker, local context-file path and a read/continue instruction; task details stay in the previewed file. Some paths copy this prompt to the clipboard | Chosen native application or CLI, which may then process it using its own provider settings |
 | Export a workspace or handoff | A local JSON or Markdown file containing private work context | A file destination you choose; subsequent sharing is your action |
 | Open documentation / GitHub | Normal browser navigation | The linked website under its own policies |
 
-AI review is explicitly started. Source refresh and importing records do not trigger it. The review scope can be previewed before sending. A review uses at most eight batches, each limited to 120 messages and 60,000 characters of evidence. Oversized selections are rejected before any network request so the user can narrow the scope; coverage limits remain visible. The associated existing-item context helps avoid duplicates and preserve decisions. Unrelated items without selected evidence must not be silently added to that context.
+AI review is explicitly started. Source refresh and importing records do not trigger it. The review scope can be previewed before sending. A review uses at most eight batches, each limited to 120 messages and 60,000 characters of evidence. Oversized selections are rejected before any network request so the user can narrow the scope; coverage limits remain visible. The associated existing-item context helps avoid duplicates and preserve decisions. An item linked by a valid registered handoff may also be included, even if its original conversation is not selected. Its current summary and decisions are context; the original unselected conversation messages are not included. Unrelated items are excluded.
 
 The main process makes provider requests. Hosted endpoints use HTTPS, credentials cannot appear in endpoint URLs, and authenticated requests do not follow redirects. Changing a provider endpoint or protocol clears the previous key so it cannot silently move to the new destination. Custom endpoints remain your choice and have their own retention, access, and billing policies.
 
 The presets are ordinary API services. Carrythread does not reuse agent subscription sign-ins or secretly route requests through a Coding Plan. It is your responsibility to choose an endpoint and credential allowed for that service.
 
 Before first starting a native agent task in a directory, confirm it with the OS folder picker. The application remembers approved directories. A working-directory path found in imported evidence is not authorization to execute there.
+
+## Continuity metadata and the local registry
+
+A prepared context file and its continuation prompt carry a first-line marker with the handoff ID, item ID, and revision. Prepared handoffs are registered locally. On import, only a matching marker in a user message can establish a link; a quoted assistant marker, unknown ID, conflicting record, or wrong target is not accepted. A registered historical handoff can reference an older revision while the current item's later corrections remain authoritative.
+
+Where source metadata is available, a selected review may send the agent name, conversation title, directory-name project hint, normalized workspace hash, and validated linked-item IDs. Full `cwd` is not sent as a dedicated metadata field. The hash is an equality hint, not encryption or guaranteed anonymization; hints and ordinary text may identify a project. Missing metadata remains missing, and unrelated sessions are not added to fill it.
+
+The link establishes continuity, not execution authorization or a delivery/read receipt. A new topic in a linked conversation is not automatically the linked task. The destination application still uses its own model/data settings.
+
+The whole-workspace export excludes the handoff registry. Existing markers may remain in exported message text, but a marker without its matching local registration does not automatically become a trusted link after import elsewhere.
 
 ## Provider keys
 
@@ -96,17 +106,27 @@ Carrythread 在自己的Electron应用数据目录保存`carrythread.db`与交�
 |---|---|---|
 | 刷新本地来源 | 导入器不发起网络请求 | 本地文件系统与索引 |
 | AI连接测试 | 很小的合成提示与配置凭证 | 选定模型服务地址 |
-| AI回顾 | 有上限的所选消息、角色、时间、证据ID，以及与所选会话关联的既有事项上下文 | 选定模型服务地址 |
+| AI回顾 | 有上限的所选正文、角色、时间、证据ID，可用会话元数据，以及经证据或本地登记交接关联的既有事项 | 选定模型服务地址 |
 | 本机Ollama | 将分析内容发送给本地Ollama进程 | 本地服务；模型/服务自身配置需另行确认 |
-| 打开或启动交接 | 已准备上下文文件的路径和当前指令；部分路径会复制到系统剪贴板 | 选定应用/CLI，后者可能按自己的配置调用模型 |
+| 打开或启动交接 | 已登记的引用标记、上下文文件路径和读取/继续提示；任务详情留在已预览文件中。部分路径会将提示复制到剪贴板 | 选定应用/CLI，后者可能按自己的配置调用模型 |
 | 导出工作区或交接 | 包含私人工作内容的本地JSON/Markdown文件 | 你选择的位置；之后分享由你控制 |
 | 打开文档/GitHub | 正常浏览器访问 | 相应网站及其政策 |
 
-AI回顾需明确启动，刷新或导入不会触发。发送前可预览范围；一次回顾最多八批，每批依据最多120条消息、60,000字符。超过边界会在任何网络请求前拒绝，让用户缩小范围；覆盖限制保持可见。关联事项用于去重并保留决定，没有所选证据的无关事项不应悄悄附加到请求。
+AI回顾需明确启动，刷新或导入不会触发。发送前可预览范围；一次回顾最多八批，每批依据最多120条消息、60,000字符。超过边界会在任何网络请求前拒绝，让用户缩小范围；覆盖限制保持可见。关联事项用于去重并保留决定，有效登记交接关联的事项也可能随本次回顾发送，即使其原对话未勾选：发送的是当前摘要和决定等上下文，不是未选中的原对话消息。其他无关事项不附加。
 
 模型请求由主进程发送；托管地址使用HTTPS，URL中不能嵌入凭证，带凭证请求不跟随重定向。修改服务地址或协议会清除旧密钥，避免悄悄带到新地址。自定义服务的保存期限、访问和计费规则由该服务商决定。预设是普通API服务，不复用Agent订阅登录，也不偷偷切换Coding Plan地址；请按账号权限选择地址和密钥。
 
 首次在某个目录发起原生Agent任务前，通过系统文件夹选择器确认。应用会记住已确认目录；导入依据中的工作路径不是执行许可。
+
+## 连续性元数据与本地登记
+
+交接文件和继续提示的首行包含交接ID、事项ID和修订版本，本地会保存该交接登记。导入时，只有用户消息中与登记吻合的标记才能建立联系；助手引用、未知ID、冲突登记或错误目标不作为有效关联。历史交接可以指向旧修订，但原事项后来经过纠正的当前状态仍优先。
+
+来源提供时，所选回顾可发送Agent名、会话标题、目录名项目提示、规范化工作目录哈希和校验后的关联事项ID。完整`cwd`不作为专用元数据字段发送。哈希仅是相等性线索，不是加密或匿名化保证；提示和普通正文仍可能识别项目。缺失元数据不会补造，也不会为补全它读取无关会话。
+
+这种联系代表工作连续性，不代表执行授权、送达或已读；关联会话里的新话题不会自动归到原任务。目标应用仍使用自己的模型和数据设置。
+
+整工作区导出不含交接登记表；消息正文可能保留标记，但在其他工作区没有相应本地登记时，不会自动成为受信任的关联。
 
 ## 模型密钥
 

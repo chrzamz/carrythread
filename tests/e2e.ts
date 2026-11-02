@@ -1,10 +1,11 @@
 import assert from 'node:assert/strict'
 import { createServer } from 'node:http'
-import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdtemp, mkdir, readFile, realpath, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { createRequire } from 'node:module'
-import { _electron as electron } from 'playwright'
+import { randomUUID } from 'node:crypto'
+import { _electron as electron, type ElectronApplication, type Page } from 'playwright'
 import { Store } from '../src/core/store'
 import type { AppSettings, SourceMessage } from '../src/core/contracts'
 
@@ -15,6 +16,7 @@ const sourceRoot = join(root, 'history'),
 await mkdir(sourceRoot)
 await mkdir(dataRoot)
 const timestamp = new Date().toISOString()
+const syntheticSecret = 'sk-' + 'local-fixture-only-'.repeat(3)
 await writeFile(
   join(sourceRoot, 'atlas.json'),
   JSON.stringify({
@@ -36,11 +38,12 @@ await writeFile(
         cwd: sourceRoot,
         role: 'assistant',
         timestamp,
-        text: 'Implementation is ready for acceptance. Production publication has not been checked.',
+        text: `Implementation is ready for acceptance. Production publication has not been checked.\napi_key=${syntheticSecret}`,
       },
     ],
   }),
 )
+const originalSource = await readFile(join(sourceRoot, 'atlas.json'), 'utf8')
 const seed = new Store(join(dataRoot, 'carrythread.db'))
 const settings: AppSettings = {
   locale: 'en',
@@ -54,6 +57,10 @@ const settings: AppSettings = {
 seed.setSetting('app.settings', settings)
 seed.close()
 let providerRequests = 0
+let delayNext = false
+let notifySlowRequest: (() => void) | undefined
+let requireContinuity = false
+let verifiedContinuation = false
 const server = createServer(async (req, res) => {
   const chunks: Buffer[] = []
   for await (const chunk of req) chunks.push(Buffer.from(chunk))
@@ -66,17 +73,30 @@ const server = createServer(async (req, res) => {
   )
   providerRequests++
   const prompt = String(body.messages?.[1]?.content || '')
+  assert.ok(
+    !prompt.includes(syntheticSecret),
+    'Source credential must be filtered before real HTTP transport',
+  )
   let content = 'OK'
   if (prompt.includes('AVAILABLE_MESSAGES')) {
     const messages = JSON.parse(
       prompt.split('AVAILABLE_MESSAGES (chronological):\n')[1],
     ) as SourceMessage[]
-    const message = messages.find((m) => m.role === 'user')!
+    const contexts=JSON.parse(prompt.split('SESSION_CONTEXT:\n')[1].split('\n\nEXISTING_ITEMS:')[0]) as {sessionId:string;linkedItemIds:string[]}[]
+    const link=contexts.find(context=>context.linkedItemIds.length)
+    if(requireContinuity){
+      assert.ok(link,'A new agent conversation must receive its registered work-item context')
+      assert.equal(new Set(messages.map(m=>m.sessionId)).size,1,'Unselected original conversation must not be sent')
+      verifiedContinuation=true;requireContinuity=false
+    }
+    const message = messages.find((m) => m.role === 'user' && (!link||m.sessionId===link.sessionId))!
     content = JSON.stringify({
       items: [
         {
+          // Deliberately omit existingId: the verified marker evidence must recover
+          // this continuation even when a model changes the title and forgets the ID.
           project: 'Atlas',
-          title: 'Verify onboarding',
+          title: link?'Acceptance follow-up from another agent':'Verify onboarding',
           state: 'verify',
           stage: 'Implementation ready for acceptance',
           summary: 'The onboarding implementation needs acceptance checks.',
@@ -91,12 +111,20 @@ const server = createServer(async (req, res) => {
       ],
     })
   }
-  res.writeHead(200, { 'content-type': 'application/json' })
-  res.end(
-    JSON.stringify({
-      choices: [{ finish_reason: 'stop', message: { role: 'assistant', content } }],
-    }),
-  )
+  const send = () => {
+    if (res.destroyed) return
+    res.writeHead(200, { 'content-type': 'application/json' })
+    res.end(
+      JSON.stringify({
+        choices: [{ finish_reason: 'stop', message: { role: 'assistant', content } }],
+      }),
+    )
+  }
+  if (delayNext) {
+    delayNext = false
+    notifySlowRequest?.()
+    setTimeout(send, 1500).unref()
+  } else send()
 })
 await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
 const port = (server.address() as { port: number }).port
@@ -106,18 +134,24 @@ const env: Record<string, string> = Object.fromEntries(
   ),
 )
 delete env.ELECTRON_RUN_AS_NODE
-const app = await electron.launch({
-  executablePath: require('electron'),
-  args: [resolve('out/main/index.cjs')],
+const launchOptions = {
+  executablePath: process.env.CARRYTHREAD_EXECUTABLE || require('electron'),
+  args: [
+    ...(process.env.CARRYTHREAD_EXECUTABLE ? [] : [resolve('out/main/index.cjs')]),
+    ...(process.platform === 'linux' && process.env.CI ? ['--no-sandbox'] : []),
+  ],
   env,
   timeout: 30_000,
-})
-const page = await app.firstWindow()
+}
+let app: ElectronApplication | undefined
+let page: Page | undefined
 const errors: string[] = []
-page.on('pageerror', (error) => errors.push(error.message))
 const screenshots = resolve('work/e2e-screenshots')
 await mkdir(screenshots, { recursive: true })
 try {
+  app = await electron.launch(launchOptions)
+  page = await app.firstWindow()
+  page.on('pageerror', (error) => errors.push(error.message))
   await page.getByRole('button', { name: 'Refresh sources', exact: true }).click()
   await page
     .getByRole('banner')
@@ -128,7 +162,7 @@ try {
   )
   await page.getByRole('button', { name: 'AI connections', exact: true }).click()
   await page.getByRole('button', { name: 'Add connection', exact: true }).click()
-  const modal = page.locator('dialog')
+  let modal = page.locator('dialog')
   await modal.getByLabel('Name', { exact: true }).fill('Synthetic local test')
   await modal.getByLabel('API base URL', { exact: true }).fill(`http://127.0.0.1:${port}/v1`)
   await modal.getByLabel('Model ID', { exact: true }).fill('fixture-model')
@@ -136,7 +170,10 @@ try {
   await modal.waitFor({ state: 'hidden' })
   await page.getByRole('button', { name: 'Test connection', exact: true }).click()
   await page.getByText('Connection test succeeded.', { exact: true }).waitFor()
-  await page.getByRole('banner').getByRole('button', { name: 'Review with AI', exact: true }).click()
+  await page
+    .getByRole('banner')
+    .getByRole('button', { name: 'Review with AI', exact: true })
+    .click()
   await modal.getByRole('button', { name: 'Start review', exact: true }).click()
   await modal.waitFor({ state: 'hidden' })
   await page.getByRole('heading', { name: 'Verify onboarding', exact: true }).waitFor()
@@ -149,6 +186,19 @@ try {
   await modal.getByRole('button', { name: 'Save correction', exact: true }).click()
   await modal.waitFor({ state: 'hidden' })
   await page.getByText('Corrected by you', { exact: true }).waitFor()
+  await page
+    .getByRole('banner')
+    .getByRole('button', { name: 'Review with AI', exact: true })
+    .click()
+  await modal.getByRole('button', { name: 'Start review', exact: true }).click()
+  await modal.waitFor({ state: 'hidden' })
+  const rechecked = await page.evaluate(() => window.carrythread.snapshot())
+  assert.equal(
+    rechecked.items[0].state,
+    'paused',
+    'AI rerun must not reopen a manually paused item',
+  )
+  await page.locator('.work-row-main').first().click()
   await page.getByRole('button', { name: 'Carry this forward', exact: true }).click()
   await modal.getByLabel('Continue with', { exact: true }).selectOption('generic')
   await modal.getByRole('button', { name: 'Prepare handoff', exact: true }).click()
@@ -160,8 +210,36 @@ try {
   await modal
     .getByText('Continuation prompt copied. Paste it into the chosen agent.', { exact: true })
     .waitFor()
+  const copied = await app.evaluate(({ clipboard }) => clipboard.readText())
+  assert.ok(copied.includes('Carrythread') && /[\\/]handoffs[\\/]/.test(copied))
   await page.screenshot({ path: join(screenshots, 'handoff-en.png') })
   await modal.getByRole('button', { name: 'Close', exact: true }).click()
+  const continuedRoot=join(root,'claude-history'),continuedWorkspace=join(root,'second-workspace')
+  await mkdir(continuedRoot);await mkdir(continuedWorkspace)
+  const continuedId=randomUUID(),continuedAt=new Date().toISOString()
+  await writeFile(join(continuedRoot,'continued.jsonl'),[
+    {type:'custom-title',sessionId:continuedId,customTitle:'Atlas continuation in Claude'},
+    {type:'user',sessionId:continuedId,uuid:randomUUID(),timestamp:continuedAt,cwd:continuedWorkspace,message:{role:'user',content:copied}},
+    {type:'assistant',sessionId:continuedId,uuid:randomUUID(),timestamp:continuedAt,cwd:continuedWorkspace,message:{role:'assistant',content:'I have the previous decisions. Acceptance is still pending; no publication is confirmed.'}},
+  ].map(row=>JSON.stringify(row)).join('\n')+'\n')
+  await app.evaluate(({dialog},path)=>{dialog.showOpenDialog=async()=>({canceled:false,filePaths:[path]})},continuedRoot)
+  await page.getByRole('button',{name:'Sources',exact:true}).click()
+  await page.getByLabel('Choose a source folder',{exact:true}).selectOption('claude')
+  await page.getByText(await realpath(continuedRoot),{exact:true}).waitFor()
+  await page.getByRole('button',{name:'Refresh sources',exact:true}).click()
+  await page.waitForFunction(async()=> (await window.carrythread.snapshot()).sessions.length===2)
+  await page.getByRole('banner').getByRole('button',{name:'Review with AI',exact:true}).click()
+  await modal.getByRole('button',{name:'Clear selection',exact:true}).click()
+  await modal.locator('.session-check').filter({hasText:'Claude Code'}).getByRole('checkbox').check()
+  requireContinuity=true
+  await modal.getByRole('button',{name:'Start review',exact:true}).click()
+  await modal.waitFor({state:'hidden'})
+  const continued=await page.evaluate(()=>window.carrythread.snapshot())
+  assert.equal(continued.items.length,1,'A linked conversation must not become a duplicate task')
+  assert.equal(continued.items[0].id,rechecked.items[0].id)
+  assert.equal(continued.items[0].state,'paused')
+  assert.ok(continued.items[0].evidence.some(ref=>ref.sessionId!==rechecked.items[0].evidence[0].sessionId))
+  assert.equal(verifiedContinuation,true)
   await page.getByRole('button', { name: 'Settings', exact: true }).click()
   for (const [locale, label, heading] of [
     ['zh-CN', '语言', '工作空间，由你掌握。'],
@@ -172,29 +250,102 @@ try {
     await page.locator('.settings-section select').first().selectOption(locale)
     await page.getByRole('heading', { name: heading, exact: true }).waitFor()
     assert.equal(await page.locator('html').getAttribute('lang'), locale)
-    assert.equal(await page.getByRole('combobox', { name: label, exact: true }).inputValue(), locale)
+    assert.equal(
+      await page.getByRole('main').getByRole('combobox', { name: label, exact: true }).inputValue(),
+      locale,
+    )
     await page.screenshot({ path: join(screenshots, `settings-${locale}.png`) })
   }
   await page.getByLabel('Appearance', { exact: true }).selectOption('dark')
   await page.waitForFunction(() => document.documentElement.dataset.theme === 'dark')
   await page.screenshot({ path: join(screenshots, 'settings-dark.png') })
-  assert.equal(providerRequests, 2)
+  delayNext = true
+  const slowRequest = new Promise<void>((resolve) => {
+    notifySlowRequest = resolve
+  })
+  await page
+    .getByRole('banner')
+    .getByRole('button', { name: 'Review with AI', exact: true })
+    .click()
+  await modal.getByRole('button', { name: 'Start review', exact: true }).click()
+  await slowRequest
+  await modal.getByRole('button', { name: 'Cancel', exact: true }).click()
+  await modal.getByRole('button', { name: 'Start review', exact: true }).waitFor()
+  await modal.getByRole('button', { name: 'Cancel', exact: true }).click()
+  await modal.waitFor({ state: 'hidden' })
+  assert.equal(providerRequests, 5)
   assert.deepEqual(errors, [])
   const state = await page.evaluate(() => window.carrythread.snapshot())
   assert.equal(state.items.length, 1)
   assert.equal(state.items[0].state, 'paused')
   assert.equal(state.items[0].manualOverride, true)
-  assert.equal(state.sessions.length, 1)
+  assert.equal(state.sessions.length, 2)
+  assert.equal(state.reviews[0].status, 'failed')
+  assert.equal(state.reviews[0].error, 'cancelled')
+  assert.equal(
+    await readFile(join(sourceRoot, 'atlas.json'), 'utf8'),
+    originalSource,
+    'Original source must stay byte-for-byte unchanged',
+  )
+  await app.close()
+  app = await electron.launch(launchOptions)
+  page = await app.firstWindow()
+  modal = page.locator('dialog')
+  await page.getByRole('button', { name: 'Settings', exact: true }).waitFor()
+  const reopened = await page.evaluate(() => window.carrythread.snapshot())
+  assert.equal(reopened.items[0].id, state.items[0].id)
+  assert.equal(reopened.items[0].state, 'paused')
+  assert.equal(reopened.settings.theme, 'dark')
+  assert.equal(reopened.settings.providers.length, 1)
+  await page.getByRole('button', { name: 'Settings', exact: true }).click()
+  const exportPath = join(root, 'workspace-export.json')
+  await app.evaluate(({ dialog }, filePath) => {
+    dialog.showSaveDialog = async () => ({ canceled: false, filePath })
+  }, exportPath)
+  await page.getByRole('button', { name: 'Export workspace', exact: true }).click()
+  await page.getByText('Export saved', { exact: true }).waitFor()
+  const exported = JSON.parse(await readFile(exportPath, 'utf8'))
+  assert.equal(exported.schemaVersion, 1)
+  assert.equal(exported.items.length, 1)
+  assert.equal(exported.settings, undefined)
+  assert.equal(exported.handoffs, undefined)
+  await page.getByRole('button', { name: 'Clear local Carrythread data', exact: true }).click()
+  await modal.getByRole('button', { name: 'Confirm', exact: true }).click()
+  await modal.waitFor({ state: 'hidden' })
+  const cleared = await page.evaluate(() => window.carrythread.snapshot())
+  assert.equal(cleared.items.length, 0)
+  assert.equal(cleared.sessions.length, 0)
+  assert.equal(cleared.settings.providers.length, 0)
+  assert.equal(await readFile(join(sourceRoot, 'atlas.json'), 'utf8'), originalSource)
+  await app.evaluate(({ dialog }, path) => {
+    dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [path] })
+  }, exportPath)
+  await page.getByRole('button', { name: 'Settings', exact: true }).click()
+  await page.getByRole('button', { name: 'Import workspace', exact: true }).click()
+  await page.getByText('Workspace imported', { exact: true }).waitFor()
+  const imported = await page.evaluate(() => window.carrythread.snapshot())
+  assert.equal(imported.items[0].id, reopened.items[0].id)
+  assert.equal(imported.items[0].state, 'paused')
+  assert.equal(imported.settings.providers.length, 0)
   console.log(
     JSON.stringify(
       {
         ok: true,
-        importedSessions: 1,
+        importedSessions: 2,
         reviewItems: 1,
         providerRequests,
         realNetworkTransport: 'localhost synthetic server',
         externalModelTested: false,
         protectedCorrection: true,
+        repeatReviewRespectsCorrection: true,
+        cancellationPreservesState: true,
+        sourceUnchanged: true,
+        restartPersistence: true,
+        portableExportImport: true,
+        clearLeavesOriginalSources: true,
+        clipboardVerified: true,
+        sourcePicker: true,
+        crossAgentContinuation: true,
         handoffFile: true,
         nativeAgentStarted: false,
         locales: ['en', 'zh-CN', 'es', 'ja'],
@@ -205,12 +356,19 @@ try {
       2,
     ),
   )
-} catch(error) {
-  await page.screenshot({path:join(screenshots,'failure.png')}).catch(()=>undefined)
-  await writeFile(join(screenshots,'failure.txt'),await page.locator('body').innerText().catch(()=>''))
+} catch (error) {
+  await page?.screenshot({ path: join(screenshots, 'failure.png') }).catch(() => undefined)
+  if (page) await writeFile(
+    join(screenshots, 'failure.txt'),
+    await page
+      .locator('body')
+      .innerText()
+      .catch(() => ''),
+  )
   throw error
 } finally {
-  await app.close()
+  await app?.close().catch(() => undefined)
+  server.closeAllConnections()
   await new Promise<void>((resolve) => server.close(() => resolve()))
   await rm(root, { recursive: true, force: true })
 }
