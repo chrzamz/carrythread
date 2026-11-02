@@ -152,6 +152,13 @@ try {
   app = await electron.launch(launchOptions)
   page = await app.firstWindow()
   page.on('pageerror', (error) => errors.push(error.message))
+  // firstWindow may be reported before its initial about:blank navigation finishes.
+  await page.waitForURL((url) => url.protocol === 'file:' && url.pathname.endsWith('/renderer/index.html'))
+  await page.waitForFunction(() => typeof window.carrythread?.snapshot === 'function')
+  const bootstrap = await page.evaluate(() => window.carrythread.snapshot())
+  assert.ok(bootstrap.settings.sources.some(source => source.id === 'fixture-source'), 'The isolated synthetic profile must be loaded before exercising the UI')
+  await page.getByRole('banner').waitFor({ state: 'visible' })
+  await writeFile(join(screenshots, 'startup.json'), JSON.stringify({ url: page.url(), sourceCount: bootstrap.settings.sources.length, locale: bootstrap.settings.locale, buttons: await page.getByRole('button').allTextContents() }, null, 2))
   await page.getByRole('button', { name: 'Refresh sources', exact: true }).click()
   await page
     .getByRole('banner')
@@ -357,7 +364,23 @@ try {
     ),
   )
 } catch (error) {
+  if (app) await writeFile(join(screenshots, 'failure-windows.json'), JSON.stringify(await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().map(window => ({
+    visible: window.isVisible(), focused: window.isFocused(), minimized: window.isMinimized(),
+    title: window.getTitle(), url: window.webContents.getURL(), loading: window.webContents.isLoading(),
+  }))).catch(() => ({ unavailable: true })), null, 2))
   await page?.screenshot({ path: join(screenshots, 'failure.png') }).catch(() => undefined)
+  if (page) await writeFile(join(screenshots, 'failure-dom.json'), JSON.stringify(await page.evaluate(() => ({
+    url: location.href,
+    readyState: document.readyState,
+    bridge: typeof window.carrythread?.snapshot,
+    focused: document.hasFocus(),
+    buttons: Array.from(document.querySelectorAll('button')).map(button => ({
+      html: button.outerHTML, text: button.innerText, disabled: button.disabled,
+      visibility: getComputedStyle(button).visibility, display: getComputedStyle(button).display,
+      rects: Array.from(button.getClientRects()).map(rect => ({x:rect.x,y:rect.y,width:rect.width,height:rect.height})),
+      hiddenAncestor: button.closest('[aria-hidden="true"],[inert]')?.outerHTML.slice(0, 500) ?? null,
+    })),
+  })).catch(() => ({ unavailable: true })), null, 2))
   if (page) await writeFile(
     join(screenshots, 'failure.txt'),
     await page
