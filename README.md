@@ -10,7 +10,7 @@ Carrythread is a local desktop workspace for people working across AI agents and
 
 A completed response is not always a completed delivery. Carrythread keeps creation, testing, publication, and acceptance distinct, with evidence you can inspect and state you can correct.
 
-> **v0.1.0 is under release validation.** Source setup is available below. Local macOS source E2E and recorded core checks have passed at the checkpoints listed in the release ledger. The final local checks passed 109/109 tests, typecheck, build, and real Electron E2E including a model omitting the continuation ID; latest-head cross-platform builds are still pending. Direct-provider HTTP, installer, native-target, and signing evidence are tracked separately in the [release checklist](docs/RELEASE-CHECKLIST.md). Do not assume a download or a signed build exists until it appears in [Releases](https://github.com/chrzamz/carrythread/releases).
+> **v0.1.0 is under release validation.** Source setup is available below. Local macOS source E2E and recorded core checks have passed at the checkpoints listed in the release ledger. The final local checks passed 130/130 tests, typecheck, build, source E2E, and local hardened-package renderer-CDP E2E without Node inspector/main-process test hooks; latest-head cross-platform builds are still pending. Direct-provider HTTP, installer, native-target, and signing evidence are tracked separately in the [release checklist](docs/RELEASE-CHECKLIST.md). Do not assume a download or a signed build exists until it appears in [Releases](https://github.com/chrzamz/carrythread/releases).
 
 ## What it does
 
@@ -119,7 +119,7 @@ Workspace export does not include the local handoff registry. A context file rem
 
 ## Privacy and local data
 
-Original histories are read-only. Carrythread stores its index, work items, corrections, settings, and prepared handoffs in its own local application-data directory. The workspace database is **not encrypted as a whole**. Provider keys use OS-backed encryption when available, with a session-only fallback instead of plaintext persistence.
+Original histories are read-only. Carrythread stores its index, work items, corrections, settings, and prepared handoffs in its own local application-data directory. The workspace database is **not encrypted as a whole**. Provider keys use OS-backed encryption when available. Packaged macOS uses a same-signed short-lived helper over anonymous pipes, with no window, Store or network; presence display does not decrypt. Actual use retrieves the key, with bounded session-only fallback instead of plaintext persistence.
 
 AI review is opt-in. Selected evidence, available session metadata, and the associated existing work context go to the provider you choose. A registered handoff can associate a new selected conversation with an existing item without uploading the unselected old conversation. Local Ollama can keep inference local. Redaction is a safeguard, not complete anonymization: names, project text, source paths, and other sensitive details can still appear in records and exports.
 

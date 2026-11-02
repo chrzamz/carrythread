@@ -38,5 +38,6 @@ const api: CarrythreadAPI = {
   clearLocalData: () => invoke('clearLocalData'),
   openExternal: (url) => invoke('openExternal', url),
   version: () => invoke('version'),
+  quit: () => invoke('quit'),
 }
 contextBridge.exposeInMainWorld('carrythread', api)

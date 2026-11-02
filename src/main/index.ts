@@ -26,7 +26,7 @@ import type {
 import { AGENTS } from '../core/contracts'
 import { Store } from '../core/store'
 import { discoverSources, SourceScanner } from '../core/sources'
-import { PROVIDER_PRESETS, testConnection, validateProvider } from '../core/ai'
+import { AIError, PROVIDER_PRESETS, testConnection, validateProvider } from '../core/ai'
 import { planReviewBatches, runReview } from '../core/review'
 import { buildReviewContext } from '../core/continuity'
 import {
@@ -40,12 +40,16 @@ import { providerDestinationChanged } from '../core/provider-policy'
 import { ProviderKeyStorage } from '../core/key-storage'
 import { assertExportDestination } from '../core/paths'
 import { handoffEnvironment,PARENT_SESSION_VARIABLES } from '../core/launch-environment'
+import { MAC_KEY_STORAGE_HELPER_FLAG, MacKeyStorageBroker, runMacKeyStorageHelper } from './mac-key-storage'
 
+const isKeyStorageHelper = process.argv.includes(MAC_KEY_STORAGE_HELPER_FLAG)
 const development = !app.isPackaged
-for(const name of PARENT_SESSION_VARIABLES)delete process.env[name]
-if (process.env.CARRYTHREAD_DATA_DIR && isAbsolute(process.env.CARRYTHREAD_DATA_DIR))
-  app.setPath('userData', process.env.CARRYTHREAD_DATA_DIR)
-app.setName('Carrythread')
+if (!isKeyStorageHelper) {
+  for(const name of PARENT_SESSION_VARIABLES)delete process.env[name]
+  if (process.env.CARRYTHREAD_DATA_DIR && isAbsolute(process.env.CARRYTHREAD_DATA_DIR))
+    app.setPath('userData', process.env.CARRYTHREAD_DATA_DIR)
+  app.setName('Carrythread')
+}
 let window: BrowserWindow | null = null
 let store: Store
 let reviewController: AbortController | null = null
@@ -53,7 +57,7 @@ let providerChangesInFlight = 0
 const pendingExports = new Set<Promise<void>>()
 let quitting = false
 let quitFinalized = false
-let waitingForExports: Promise<void> | null = null
+let waitingForShutdown: Promise<void> | null = null
 let scanInFlight: Promise<{
   coverage: Awaited<ReturnType<SourceScanner['scan']>>['coverage']
   sessions: number
@@ -61,11 +65,14 @@ let scanInFlight: Promise<{
 }> | null = null
 const scanner = new SourceScanner()
 const sessionKeys = new Map<string, string>()
+const macKeyBroker = !isKeyStorageHelper && process.platform === 'darwin' && app.isPackaged
+  ? new MacKeyStorageBroker(process.execPath)
+  : null
 const providerKeys = new ProviderKeyStorage({
   sessionKeys,
   readEncrypted: id => store.getSetting<string | null>(`provider.key.${id}`, null),
   writeEncrypted: (id, value) => store.setSetting(`provider.key.${id}`, value),
-  backend: {
+  backend: macKeyBroker?.backend ?? {
     available: async () => {
       const available = await safeStorage.isAsyncEncryptionAvailable()
       return available && !(process.platform === 'linux' && ['basic_text', 'unknown'].includes(safeStorage.getSelectedStorageBackend()))
@@ -131,20 +138,7 @@ async function readableSettings(): Promise<AppSettings> {
   const value = settings()
   return {
     ...value,
-    providers: await Promise.all(
-      value.providers.map(async (p) => {
-        const hasKey = Boolean(await keyFor(p.id))
-        return {
-          ...p,
-          hasKey,
-          keyStorage: sessionKeys.has(p.id)
-            ? ('session' as const)
-            : hasKey
-              ? ('encrypted' as const)
-              : ('missing' as const),
-        }
-      }),
-    ),
+    providers: value.providers.map(p => ({ ...p, ...providerKeys.presence(p.id) })),
   }
 }
 function saveSettings(value: AppSettings): void {
@@ -153,9 +147,16 @@ function saveSettings(value: AppSettings): void {
 }
 
 async function keyFor(id: string): Promise<string | undefined> {
-  return providerKeys.get(id)
+  if (quitting) throw new Error('OPERATION_IN_PROGRESS')
+  const hadKey = providerKeys.presence(id).hasKey
+  const key = await providerKeys.get(id)
+  if (quitting) throw new Error('OPERATION_IN_PROGRESS')
+  // A locked/unavailable existing key must not turn an authenticated request into an anonymous one.
+  if (hadKey && !key) throw new AIError('authentication')
+  return key
 }
 async function saveKey(id: string, key: string): Promise<void> {
+  if (quitting) throw new Error('OPERATION_IN_PROGRESS')
   return providerKeys.set(id, key)
 }
 
@@ -209,6 +210,7 @@ function register(channel: string, handler: (...args: any[]) => unknown): void {
         : url.startsWith('file:') &&
           fileURLToPath(url.split('#')[0]) === join(__dirname, '../renderer/index.html')
     if (!allowed) throw new Error('IPC_DENIED')
+    if (quitting) throw new Error('OPERATION_IN_PROGRESS')
     try {
       return await handler(...args)
     } catch (error) {
@@ -266,6 +268,7 @@ function launchDetached(executable: string, args: string[]): Promise<void> {
 function registerHandlers(): void {
   register('snapshot', async () => store.snapshot(await readableSettings()))
   register('version', () => app.getVersion())
+  register('quit', () => { setImmediate(() => app.quit()) })
   register('detectSources', async () => {
     const sources = await discoverSources(homedir())
     sources.forEach((s) => approvedRoots.add(s.path))
@@ -351,7 +354,8 @@ function registerHandlers(): void {
       const previous = settings().providers.find((existing) => existing.id === p.id)
       if (secret === undefined && providerDestinationChanged(previous, p)) await saveKey(p.id, '')
       if (secret !== undefined) await saveKey(p.id, secret)
-      p.hasKey = Boolean(await keyFor(p.id))
+      if (quitting) throw new Error('OPERATION_IN_PROGRESS')
+      p.hasKey = providerKeys.presence(p.id).hasKey
       const value = settings()
       value.providers = [...value.providers.filter((x) => x.id !== p.id), p]
       value.activeProviderId ||= p.id
@@ -678,6 +682,9 @@ async function createWindow(): Promise<void> {
   else await window.loadFile(join(__dirname, '../renderer/index.html'))
 }
 
+if (isKeyStorageHelper) {
+  void runMacKeyStorageHelper(app, safeStorage).catch(() => app.exit(1))
+} else {
 app.whenReady().then(async () => {
   await mkdir(app.getPath('userData'), { recursive: true, mode: 0o700 })
   store = new Store(join(app.getPath('userData'), 'carrythread.db'))
@@ -718,14 +725,27 @@ app.on('before-quit', (event) => {
     providerKeys.clearSessionKeys()
     store?.close()
     quitFinalized = true
-    if (providerKeys.pendingNativeCalls > 0) app.exit(0)
+    if (!macKeyBroker && providerKeys.pendingNativeCalls > 0) app.exit(0)
     else if (resumeNormalQuit) app.quit()
   }
-  if (pendingExports.size > 0 || waitingForExports) {
+  if (macKeyBroker || pendingExports.size > 0 || waitingForShutdown) {
     event.preventDefault()
-    waitingForExports ??= (async () => {
-      while (pendingExports.size > 0) await Promise.allSettled([...pendingExports])
+    waitingForShutdown ??= (async () => {
+      const exportsSettled = async () => {
+        while (pendingExports.size > 0) await Promise.allSettled([...pendingExports])
+      }
+      const brokerStopped = macKeyBroker?.shutdown().catch(error => {
+        // The broker emits this only after its child has closed. Do not turn a
+        // temporary-directory cleanup failure into an application quit deadlock.
+        if (error?.code === 'KEY_HELPER_CLEANUP_FAILED') {
+          console.error('KEY_HELPER_CLEANUP_FAILED')
+          return
+        }
+        throw error
+      }) ?? Promise.resolve()
+      await Promise.all([exportsSettled(), brokerStopped])
       finish(true)
     })()
   } else finish(false)
 })
+}

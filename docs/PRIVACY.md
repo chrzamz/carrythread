@@ -54,11 +54,15 @@ The whole-workspace export excludes the handoff registry. Existing markers may r
 
 ## Provider keys
 
-Provider keys stay in the main process. When secure storage is available, Electron `safeStorage` encrypts them using OS-backed facilities. The renderer receives key-presence and storage-status information, not the stored secret.
+Saved provider keys use a native credential path. In packaged macOS builds, the main process delegates OS-backed `safeStorage` operations to a same-signed, short-lived helper over anonymous pipes. That helper has no window, Store, or network client. Other runtime paths use the main-process backend. Saved plaintext keys are not returned to the renderer.
+
+Displaying key presence or storage status does not decrypt the key and does not prove it is currently usable. Actual connection testing or AI review retrieves it. Native operations have deadlines; newly supplied keys fall back visibly to session-only storage if the backend is unavailable or times out. Failed reads preserve stored ciphertext, and late helper results cannot silently overwrite newer state.
 
 If secure storage is unavailable, rejects access, or does not return promptly, a newly entered key remains only in process memory for the current session; the interface shows that status. Native availability, encryption, and decryption calls each have a five-second application wait limit. This does not dismiss or bypass an operating-system permission prompt. A failed read does not delete previously stored ciphertext, and a late native result cannot silently persist a key after timeout or clearing. Linux backends reported as `basic_text` or `unknown` are not accepted as secure storage. There is no plaintext persistence fallback. After restarting, a session-only key must be supplied again.
 
 This does not encrypt the entire workspace. Protect OS credentials, backups, and local access separately.
+
+Production packages disable Electron Node mode, Node environment options and Node inspector; they load the app from ASAR. Embedded ASAR integrity is supported on macOS with Electron 16+ and Windows with Electron 30+, not claimed on Linux. These controls do not make a compromised OS account or a mutable local installation a fully trusted environment.
 
 ## Export, import, and deletion
 
@@ -130,9 +134,13 @@ AI回顾需明确启动，刷新或导入不会触发。发送前可预览范围
 
 ## 模型密钥
 
-密钥留在主进程中。安全存储可用时，Electron `safeStorage` 使用操作系统设施加密；界面只拿到密钥是否存在及存储状态，不获得已保存密钥正文。
+已保存密钥通过原生凭证路径处理。macOS打包版由主进程通过匿名管道调用同签名短命helper执行OS-backed `safeStorage`；helper没有窗口、Store或网络客户端。其他运行路径使用主进程后端，已保存明文密钥不会回传界面。
+
+显示密钥是否存在及存储状态时不解密，也不证明密钥此刻可用；真正测试连接或AI回顾时才取密钥。原生调用有截止时间；后端不可用或超时时，新输入密钥可见地退回会话存储。读取失败保留旧密文，迟到的helper结果不能覆盖较新状态。
 
 安全存储不可用、拒绝访问或未及时返回时，新输入的密钥只保留在当前进程内存，界面会显示会话存储状态。原生可用性、加密和解密调用各有五秒的应用等待上限；这不会关闭或绕过操作系统权限提示。读取失败不会删除旧密文，超时或清除后的迟到结果也不会悄悄落盘。Linux的`basic_text`或`unknown`后端不当作安全存储，不会退回明文保存；重启后需重新输入会话密钥。这不等于整个工作区加密。
+
+生产包关闭Electron的Node模式、Node环境选项与Node inspector，仅从ASAR加载应用。嵌入式ASAR完整性支持macOS上的Electron16+和Windows上的Electron30+，不宣称Linux运行时已覆盖。这些控制不等于操作系统账号失陷或可改写本地安装仍完全可信。
 
 ## 导出、导入与清除
 

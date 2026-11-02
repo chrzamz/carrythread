@@ -35,7 +35,7 @@ For website changes, run `pnpm site:build` and `node site/check.mjs`. For packag
 
 ## Privacy and safety changes
 
-Keep keys in the main process and protected storage. Review/redact before truncation and sharing. Do not weaken endpoint validation, renderer isolation, source-path boundaries, or handoff validation to make a test pass.
+Keep saved keys in the native credential path and protected storage. Packaged macOS uses a same-signed short-lived helper over anonymous pipes; it must not create a window, Store or network client. Presence checks do not decrypt. Review/redact before truncation and sharing. Do not weaken endpoint validation, renderer isolation, source-path boundaries, or handoff validation to make a test pass.
 
 A workspace export contains private work material even though provider keys are excluded. Never attach a real export or runtime database to a public issue or pull request. See [PRIVACY.md](docs/PRIVACY.md) and [SECURITY.md](SECURITY.md).
 
@@ -72,7 +72,7 @@ Using an AI tool is welcome. You remain responsible for the diff, tests, source 
 
 ## 隐私、语言与设计
 
-密钥留在主进程与受保护存储中，分享和截断前做脱敏。不要为了测试通过而削弱地址验证、renderer隔离、路径边界或交接验证。导出不含密钥仍可能包含私人材料，不能把真实导出或数据库附到公开issue/PR。
+已保存密钥限定在原生凭证路径和受保护存储中；macOS打包版使用同签名短命helper和匿名管道，helper不创建窗口、Store或网络，presence不解密。分享和截断前做脱敏。不要为了测试通过而削弱地址验证、renderer隔离、路径边界或交接验证。导出不含密钥仍可能包含私人材料，不能把真实导出或数据库附到公开issue/PR。
 
 四语目录需保持键一致，包含错误和无障碍文字；原文引用保持原语言。沿用视觉系统，检查长文字、键盘焦点、空/错误/加载状态、应用明暗主题与网站响应式布局。截图仅用合成数据，品牌SVG和网站副本同步更新。
 

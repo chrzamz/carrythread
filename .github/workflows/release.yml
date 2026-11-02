@@ -89,7 +89,7 @@ jobs:
           node --input-type=module <<'NODE'
           import {execFileSync} from 'node:child_process';
           import {resolve} from 'node:path';
-          execFileSync(process.execPath,[resolve('node_modules/tsx/dist/cli.mjs'),'tests/e2e.ts'],{env:{...process.env,CARRYTHREAD_EXECUTABLE:resolve('release/win-unpacked/Carrythread.exe')},stdio:'inherit',timeout:180000});
+          execFileSync(process.execPath,[resolve('node_modules/tsx/dist/cli.mjs'),'tests/packaged.e2e.ts'],{env:{...process.env,CARRYTHREAD_EXECUTABLE:resolve('release/win-unpacked/Carrythread.exe')},stdio:'inherit',timeout:180000});
           NODE
       - name: Electron source end-to-end on native macOS runners
         id: source_e2e
@@ -167,20 +167,22 @@ jobs:
           await appendFile(process.env.GITHUB_ENV,`CARRYTHREAD_EXECUTABLE=${executable}\nCARRYTHREAD_PACKAGED_EXECUTABLE=${executable}\n`);
           console.log({packagedExecutable:relative(process.cwd(),executable),platform});
           NODE
+      - name: Verify production Electron fuses
+        run: node scripts/verify-fuses.mjs "$CARRYTHREAD_EXECUTABLE" > work/fuses-packaged.json
       - name: Packaged application GUI end-to-end
         id: packaged_e2e
         timeout-minutes: 8
-        # e2e.ts creates its own isolated CARRYTHREAD_DATA_DIR and localhost mock.
+        # The renderer-only driver uses isolated data and a localhost mock without Node inspection.
         # Only CI Linux adds --no-sandbox inside the synthetic test driver.
         run: |
           if [ "$RUNNER_OS" = "Linux" ]; then
-            xvfb-run -a pnpm exec tsx tests/e2e.ts
+            xvfb-run -a pnpm exec tsx tests/packaged.e2e.ts
           else
-            pnpm exec tsx tests/e2e.ts
+            pnpm exec tsx tests/packaged.e2e.ts
           fi
       - name: Preserve unpacked packaged E2E screenshots
         run: |
-          node --input-type=module -e "import { cp } from 'node:fs/promises'; await cp('work/e2e-screenshots', 'work/e2e-packaged', { recursive: true });"
+          node --input-type=module -e "import { cp } from 'node:fs/promises'; await cp('work/e2e-screenshots', 'work/e2e-packaged', { recursive: true }); await cp('work/packaged-e2e-result.json','work/packaged-runtime-result.json');"
       - name: Install the actual distribution into the temporary runner
         id: installer_setup
         timeout-minutes: 8
@@ -265,14 +267,16 @@ jobs:
           await appendFile(process.env.GITHUB_ENV,`CARRYTHREAD_EXECUTABLE=${executable}\n`);
           console.log({installer:state.artifact,method:state.method,installedExecutable:basename(executable),isolatedProfile:true});
           NODE
+      - name: Verify installed production Electron fuses
+        run: node scripts/verify-fuses.mjs "$CARRYTHREAD_EXECUTABLE" > work/fuses-installed.json
       - name: Installed application GUI end-to-end
         id: installer_e2e
         timeout-minutes: 8
         run: |
           if [ "$RUNNER_OS" = "Linux" ]; then
-            xvfb-run -a pnpm exec tsx tests/e2e.ts
+            xvfb-run -a pnpm exec tsx tests/packaged.e2e.ts
           else
-            pnpm exec tsx tests/e2e.ts
+            pnpm exec tsx tests/packaged.e2e.ts
           fi
       - name: Uninstall and clean temporary installer test
         id: installer_cleanup
@@ -345,6 +349,10 @@ jobs:
           assert.equal(process.env.PACKAGED_E2E_OUTCOME,'success','Packaged E2E must pass before publishing artifacts');
           for(const key of ['INSTALLER_SETUP_OUTCOME','INSTALLER_E2E_OUTCOME','INSTALLER_CLEANUP_OUTCOME']) assert.equal(process.env[key],'success',`${key} must pass`);
           const installer=JSON.parse(await readFile('work/installer-validation.json','utf8'));
+          const packagedFuses=JSON.parse(await readFile('work/fuses-packaged.json','utf8')),installedFuses=JSON.parse(await readFile('work/fuses-installed.json','utf8'));
+          const packagedRuntime=JSON.parse(await readFile('work/packaged-runtime-result.json','utf8')),installedRuntime=JSON.parse(await readFile('work/packaged-e2e-result.json','utf8'));
+          for(const result of [packagedRuntime,installedRuntime]) {assert.equal(result.ok,true);assert.equal(result.nodeInspector,false);assert.equal(result.forcedCleanup,false);assert.ok(result.normalExits>=4);}
+          assert.equal(packagedFuses.verified,true);assert.equal(installedFuses.verified,true);
           assert.equal(installer.installStatus,'complete');assert.equal(installer.cleanupStatus,'complete');assert.equal(installer.distinctFromUnpacked,true);
           if(platform==='mac') assert.equal(process.env.SOURCE_E2E_OUTCOME,'success','macOS source E2E must pass');
           if(platform==='mac') {assert.equal(installer.signatureVerified,true);assert.equal(installer.zipSignatureVerified,true);}
@@ -358,6 +366,11 @@ jobs:
           for(const file of files) {const bytes=await readFile(join('release',file));sums.push(`${createHash('sha256').update(bytes).digest('hex')}  ${file}`);await copyFile(join('release',file),join('release-artifacts',file));}
           await writeFile(`release-artifacts/SHA256SUMS-${platform}-${arch}.txt`,sums.join('\n')+'\n');
           const record={version:p.version,tag:process.env.RELEASE_TAG||null,commit:execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim(),target:{platform,arch},runner:{platform:process.platform,arch:process.arch,node:process.version},artifacts:files,codeSigning:'No developer-identity signing configured; unsigned distribution',notarization:'Not performed',runtimeSignatureNote:'Platform runtimes may contain ad-hoc signatures; these are not developer signing or notarization.',coreChecks:'pnpm check passed',sourceE2E:{status:process.env.SOURCE_E2E_OUTCOME==='success'?'passed':'not-run',note:process.platform==='darwin'?'Real Electron built-source run, synthetic localhost provider':'Source E2E is not run in this packaging job'},packagedE2E:{status:'passed',executable:relative(process.cwd(),process.env.CARRYTHREAD_PACKAGED_EXECUTABLE),profile:'Isolated synthetic application data',provider:'Synthetic localhost HTTP mock',nativeAgentStarted:false,linuxSandboxDisabledForSyntheticTest:process.platform==='linux'},installerInstallation:{status:'passed',artifact:installer.artifact,method:installer.method,guiE2E:'passed',cleanup:'passed',distinctFromUnpacked:true,packageName:installer.packageName,profile:'Isolated synthetic application data',linuxSandboxDisabledForSyntheticTest:process.platform==='linux',limits:'CI runner installation only. Does not verify end-user Gatekeeper/SmartScreen/quarantine prompts, AppImage runtime, Windows portable wrapper, or real native-agent execution.'}};
+          record.productionFuses={packaged:packagedFuses,installed:installedFuses};
+          record.packagedE2E.runtime={normalExits:packagedRuntime.normalExits,forcedCleanup:packagedRuntime.forcedCleanup,nativeKeyMode:packagedRuntime.nativeKeyMode,helperRejectsNonAppParent:packagedRuntime.helperRejectsNonAppParent};
+          record.installerInstallation.runtime={normalExits:installedRuntime.normalExits,forcedCleanup:installedRuntime.forcedCleanup,nativeKeyMode:installedRuntime.nativeKeyMode,helperRejectsNonAppParent:installedRuntime.helperRejectsNonAppParent};
+          record.packagedE2E.nodeInspector=false;record.packagedE2E.driver='Chromium renderer CDP; production fuses remain enabled';
+          record.installerInstallation.nodeInspector=false;
           record.bundleSignature=platform==='mac'?{type:'ad-hoc',unpacked:'passed',installed:'passed',zip:'passed',hardenedRuntime:true,developerIdentity:false}:null;
           record.runtimeSignatureNote=platform==='mac'?'The unpacked app, DMG-installed copy, and ZIP contents passed strict ad-hoc signature verification. This is not Developer ID signing or notarization.':record.runtimeSignatureNote;
           await writeFile(`release-artifacts/BUILD-${platform}-${arch}.json`,JSON.stringify(record,null,2)+'\n');
@@ -404,6 +417,7 @@ jobs:
           assert.equal(manifests.length,4,'All four target manifests are required');
           const records=await Promise.all(files.filter(n=>/^BUILD-.*\.json$/.test(n)).map(async n=>JSON.parse(await readFile(join('distribution',n),'utf8'))));
           assert.equal(records.length,4,'All four build records are required');
+          assert.ok(records.every(r=>r.productionFuses?.packaged?.verified===true&&r.productionFuses?.installed?.verified===true),'Every supplied runtime must pass production fuse verification');
           assert.ok(records.filter(r=>r.target.platform==='mac').every(r=>r.bundleSignature?.type==='ad-hoc'&&r.bundleSignature?.unpacked==='passed'&&r.bundleSignature?.installed==='passed'&&r.bundleSignature?.zip==='passed'),'macOS app, DMG, and ZIP signature-integrity evidence is required');
           assert.ok(records.every(r=>r.packagedE2E?.status==='passed'),'Packaged GUI E2E evidence is required for every target');
           assert.ok(records.every(r=>r.installerInstallation?.status==='passed'&&r.installerInstallation?.guiE2E==='passed'&&r.installerInstallation?.cleanup==='passed'),'Actual installer, installed GUI, and cleanup evidence are required for every target');

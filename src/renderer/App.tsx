@@ -1116,6 +1116,11 @@ export default function App() {
                     >
                       {t('docs')}
                     </Button>
+                    <Button
+                      onClick={() => void api.quit().catch(error => setNotice({ text: errorText(error, locale), error: true }))}
+                    >
+                      {t('quit')}
+                    </Button>
                   </div>
                 </section>
               </div>

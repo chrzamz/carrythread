@@ -60,6 +60,13 @@ export class ProviderKeyStorage {
   /** A deadline does not cancel the OS operation; expose its real settlement state. */
   get pendingNativeCalls(): number { return this.pendingNative }
 
+  /** Presence is metadata only. Displaying or renaming a provider must not unlock the OS store. */
+  presence(id: string): { hasKey: boolean; keyStorage: 'session' | 'encrypted' | 'missing' } {
+    if (this.sessionKeys.has(id)) return { hasKey: true, keyStorage: 'session' }
+    if (this.options.readEncrypted(id)) return { hasKey: true, keyStorage: 'encrypted' }
+    return { hasKey: false, keyStorage: 'missing' }
+  }
+
   private current(id: string, revision: number, epoch: number): boolean {
     return this.epoch === epoch && (this.revisions.get(id) ?? 0) === revision
   }

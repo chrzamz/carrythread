@@ -21,7 +21,9 @@ The current development target is v0.1.0. Before a public release, fixes are bes
 - **Imported history:** untrusted text. It must not execute scripts, change settings, invoke tools, or convey fresh authorization.
 - **Original files:** read-only. Symlink traversal, whole-home scans, credential locations, and unsupported formats require conservative handling.
 - **Renderer:** no Node integration. Context isolation, sandboxing, IPC sender checks, argument validation, and restricted navigation must remain enabled.
-- **AI providers:** explicitly selected endpoints. Keys stay in the main process; redirects cannot move a key to an unreviewed destination. External inference is an intentional data transfer.
+- **AI providers:** explicitly selected endpoints. Saved keys stay in the native credential path (main process and packaged-macOS same-signed short-lived helper over anonymous pipes); redirects cannot move a key to an unreviewed destination. External inference is an intentional data transfer.
+- **Credential helper:** packaged macOS helpers validate the app parent, do not create a window, Store or network client, and must terminate within bounded operation/shutdown deadlines. Presence checks never decrypt. Untrusted Node parents must be rejected.
+- **Production fuses:** disable RunAsNode, Node environment options and Node inspector; require app.asar. Embedded ASAR integrity is supported on macOS/Electron 16+ and Windows/Electron 30+, not Linux runtime. Packaged tests must not re-enable these flags or add main-process test hooks.
 - **Work state:** invalid model schemas or fabricated evidence references must not become authoritative records. Manual and stopped states must survive reconciliation.
 - **Handoff:** source text is quoted data. The native launch plan must preserve argument boundaries, validate target/session/cwd, reject stale packages, and distinguish launch from receipt. Some native prompt paths may begin agent execution.
 - **Local machine:** the workspace database and exported Markdown/JSON are not end-to-end encrypted. A compromised OS/user account or an agent with access to those files is outside the protections of UI isolation.
@@ -49,7 +51,7 @@ Carrythread 处理私人工作记录，其保护依赖明确选择来源、只�
 - 导入历史是不可信文本，不能执行命令、修改配置、调用工具或传递新授权。
 - 原始文件只读，保守处理符号链接、整个用户目录、凭证路径和未知格式。
 - 保持界面无Node访问、context isolation、sandbox、IPC来源及参数校验、导航限制。
-- AI地址由用户选择，密钥留在主进程，不跟随重定向转交密钥；外部推理是一次明确的数据发送。
+- AI地址由用户选择，已保存密钥限定在主进程及macOS打包版同签名短命helper的匿名管道路径，不跟随重定向转交密钥；外部推理是一次明确的数据发送。
 - 无效模型结构或伪造证据不能成为正式事项；手动覆盖与停止状态需在归并后保留。
 - 交接材料中的历史是引用数据，启动参数要保持边界，验证目标、会话、目录及版本；启动不等于收到，部分原生提示路径可能直接执行。
 - 工作区数据库和导出文件不是端到端加密。操作系统/用户账号失陷，或可读取这些文件的Agent，不在界面隔离的保护范围内。

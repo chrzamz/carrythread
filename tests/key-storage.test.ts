@@ -22,6 +22,23 @@ function fixture(backend: Partial<NativeKeyBackend> = {}) {
 }
 const nextTick = () => new Promise(resolve => setImmediate(resolve))
 
+test('presence reports stored mode without invoking any native operation', () => {
+  let calls = 0
+  const { storage, encrypted, sessionKeys, writes } = fixture({
+    available: async () => { calls++; return true },
+    encrypt: async () => { calls++; return 'cipher' },
+    decrypt: async () => { calls++; return 'plaintext' },
+  })
+  assert.deepEqual(storage.presence('provider'), { hasKey: false, keyStorage: 'missing' })
+  encrypted.set('provider', 'historical-cipher')
+  assert.deepEqual(storage.presence('provider'), { hasKey: true, keyStorage: 'encrypted' })
+  sessionKeys.set('provider', 'new-session-key')
+  assert.deepEqual(storage.presence('provider'), { hasKey: true, keyStorage: 'session' })
+  assert.equal(calls, 0)
+  assert.equal(storage.pendingNativeCalls, 0)
+  assert.deepEqual(writes, [])
+})
+
 test('successful native storage persists only ciphertext and remains readable after restart', async () => {
   const { storage, encrypted, sessionKeys, writes } = fixture()
   await storage.set('provider', 'synthetic-key')
@@ -106,6 +123,7 @@ test('read unavailability, rejection and timeout do not delete historical cipher
     encrypted.set('provider', 'historical-cipher')
     assert.equal(await storage.get('provider'), undefined)
     assert.equal(encrypted.get('provider'), 'historical-cipher')
+    assert.deepEqual(storage.presence('provider'), { hasKey: true, keyStorage: 'encrypted' })
     assert.equal(sessionKeys.size, 0)
     assert.deepEqual(writes, [])
   }

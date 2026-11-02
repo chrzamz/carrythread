@@ -271,4 +271,5 @@ export interface CarrythreadAPI {
   clearLocalData(): Promise<void>
   openExternal(url: string): Promise<void>
   version(): Promise<string>
+  quit(): Promise<void>
 }
