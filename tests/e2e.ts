@@ -139,6 +139,13 @@ const launchOptions = {
   args: [
     ...(process.env.CARRYTHREAD_EXECUTABLE ? [] : [resolve('out/main/index.cjs')]),
     ...(process.platform === 'linux' && process.env.CI ? ['--no-sandbox'] : []),
+    // Electron.launch omits the scheduling switches used by Playwright Chromium.
+    // A virtual Windows CI desktop must keep RAF-based waits and click checks running.
+    ...(process.platform === 'win32' && process.env.CI ? [
+      '--disable-background-timer-throttling',
+      '--disable-backgrounding-occluded-windows',
+      '--disable-renderer-backgrounding',
+    ] : []),
   ],
   env,
   timeout: 30_000,
@@ -372,6 +379,7 @@ try {
   if (page) await writeFile(join(screenshots, 'failure-dom.json'), JSON.stringify(await page.evaluate(() => ({
     url: location.href,
     readyState: document.readyState,
+    visibilityState: document.visibilityState,
     bridge: typeof window.carrythread?.snapshot,
     focused: document.hasFocus(),
     buttons: Array.from(document.querySelectorAll('button')).map(button => ({
