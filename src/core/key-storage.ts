@@ -28,6 +28,7 @@ export class ProviderKeyStorage {
   private readonly timeoutMs: number
   private readonly revisions = new Map<string, number>()
   private epoch = 0
+  private pendingNative = 0
 
   constructor(private readonly options: ProviderKeyStorageOptions) {
     this.sessionKeys = options.sessionKeys ?? new Map()
@@ -36,6 +37,7 @@ export class ProviderKeyStorage {
   }
 
   private native<T>(operation: () => Promise<T>): Promise<NativeResult<T>> {
+    this.pendingNative++
     return new Promise(resolve => {
       let settled = false
       const finish = (result: NativeResult<T>) => {
@@ -45,9 +47,18 @@ export class ProviderKeyStorage {
         resolve(result)
       }
       const timer = setTimeout(() => finish({ ok: false }), this.timeoutMs)
-      Promise.resolve().then(operation).then(value => finish({ ok: true, value }), () => finish({ ok: false }))
+      Promise.resolve().then(operation).then(value => {
+        this.pendingNative--
+        finish({ ok: true, value })
+      }, () => {
+        this.pendingNative--
+        finish({ ok: false })
+      })
     })
   }
+
+  /** A deadline does not cancel the OS operation; expose its real settlement state. */
+  get pendingNativeCalls(): number { return this.pendingNative }
 
   private current(id: string, revision: number, epoch: number): boolean {
     return this.epoch === epoch && (this.revisions.get(id) ?? 0) === revision

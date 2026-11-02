@@ -25,6 +25,7 @@ const nextTick = () => new Promise(resolve => setImmediate(resolve))
 test('successful native storage persists only ciphertext and remains readable after restart', async () => {
   const { storage, encrypted, sessionKeys, writes } = fixture()
   await storage.set('provider', 'synthetic-key')
+  assert.equal(storage.pendingNativeCalls, 0)
   assert.equal(encrypted.get('provider'), 'opaque-os-ciphertext')
   assert.equal(sessionKeys.has('provider'), false)
   assert.ok(!writes.includes('synthetic-key'))
@@ -54,10 +55,30 @@ test('late encryption success after timeout never persists or replaces the sessi
   await storage.set('provider', 'synthetic-key')
   assert.equal(sessionKeys.get('provider'), 'synthetic-key')
   assert.equal(encrypted.get('provider'), null)
+  assert.equal(storage.pendingNativeCalls, 1, 'A timeout must not claim the native encryption was cancelled')
   gate.resolve('late-success-cipher'); await nextTick()
+  assert.equal(storage.pendingNativeCalls, 0)
   assert.deepEqual(writes, [null])
   assert.equal(encrypted.get('provider'), null)
   assert.equal(sessionKeys.get('provider'), 'synthetic-key')
+})
+
+test('clearing memory preserves the pending-native count until late resolution or rejection', async () => {
+  const first = deferred<boolean>(), second = deferred<boolean>()
+  let calls = 0
+  const { storage, sessionKeys, writes } = fixture({ available: () => ++calls === 1 ? first.promise : second.promise })
+  await Promise.all([storage.set('first', 'synthetic-first'), storage.set('second', 'synthetic-second')])
+  assert.equal(storage.pendingNativeCalls, 2)
+  assert.equal(sessionKeys.size, 2)
+  storage.clearSessionKeys()
+  assert.equal(sessionKeys.size, 0)
+  assert.equal(storage.pendingNativeCalls, 2, 'clearSessionKeys invalidates writes, not OS operations')
+  first.resolve(true); await nextTick()
+  assert.equal(storage.pendingNativeCalls, 1)
+  second.reject(new Error('Late OS rejection')); await nextTick()
+  assert.equal(storage.pendingNativeCalls, 0)
+  assert.deepEqual(writes, [null, null])
+  assert.equal(sessionKeys.size, 0)
 })
 
 test('unavailable or rejected native operations retain only the newly supplied session key', async () => {

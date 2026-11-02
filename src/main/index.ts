@@ -50,6 +50,10 @@ let window: BrowserWindow | null = null
 let store: Store
 let reviewController: AbortController | null = null
 let providerChangesInFlight = 0
+const pendingExports = new Set<Promise<void>>()
+let quitting = false
+let quitFinalized = false
+let waitingForExports: Promise<void> | null = null
 let scanInFlight: Promise<{
   coverage: Awaited<ReturnType<SourceScanner['scan']>>['coverage']
   sessions: number
@@ -153,6 +157,14 @@ async function keyFor(id: string): Promise<string | undefined> {
 }
 async function saveKey(id: string, key: string): Promise<void> {
   return providerKeys.set(id, key)
+}
+
+/** Tracks only actual destination writes, never a user-facing native file picker. */
+function writeExport(operation: () => Promise<void>): Promise<void> {
+  if (quitting) throw new Error('OPERATION_IN_PROGRESS')
+  const pending = operation()
+  pendingExports.add(pending)
+  return pending.finally(() => pendingExports.delete(pending))
 }
 function provider(id: string): ProviderConfig {
   const result = settings().providers.find((p) => p.id === id)
@@ -568,13 +580,13 @@ function registerHandlers(): void {
       defaultPath: `carrythread-${pkg.id.slice(0, 8)}.md`,
       filters: [{ name: 'Markdown', extensions: ['md'] }],
     })
-    if (result.canceled || !result.filePath) return null
+    if (result.canceled || !result.filePath || quitting) return null
     await assertExportDestination(
       result.filePath,
       [...settings().sources.map((s) => s.path), ...store.listSessions().map((s) => s.sourcePath)],
       app.getPath('userData'),
     )
-    await writeFile(result.filePath, pkg.content, { mode: 0o600 })
+    await writeExport(() => writeFile(result.filePath, pkg.content, { mode: 0o600 }))
     return result.filePath
   })
   register('openEvidence', async (id: unknown) => {
@@ -597,13 +609,13 @@ function registerHandlers(): void {
       defaultPath: `carrythread-workspace-${new Date().toISOString().slice(0, 10)}.json`,
       filters: [{ name: 'JSON', extensions: ['json'] }],
     })
-    if (result.canceled || !result.filePath) return null
+    if (result.canceled || !result.filePath || quitting) return null
     await assertExportDestination(
       result.filePath,
       [...settings().sources.map((s) => s.path), ...store.listSessions().map((s) => s.sourcePath)],
       app.getPath('userData'),
     )
-    await writeFile(result.filePath, JSON.stringify(store.exportData(), null, 2), { mode: 0o600 })
+    await writeExport(() => writeFile(result.filePath, JSON.stringify(store.exportData(), null, 2), { mode: 0o600 }))
     return result.filePath
   })
   register('importData', async () => {
@@ -695,8 +707,25 @@ app.whenReady().then(async () => {
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit()
 })
-app.on('before-quit', () => {
+app.on('before-quit', (event) => {
+  if (quitFinalized) return
+  quitting = true
   reviewController?.abort()
   providerKeys.clearSessionKeys()
-  store?.close()
+  const finish = (resumeNormalQuit: boolean) => {
+    if (quitFinalized) return
+    // Invalidate any native operation that began while an existing write settled.
+    providerKeys.clearSessionKeys()
+    store?.close()
+    quitFinalized = true
+    if (providerKeys.pendingNativeCalls > 0) app.exit(0)
+    else if (resumeNormalQuit) app.quit()
+  }
+  if (pendingExports.size > 0 || waitingForExports) {
+    event.preventDefault()
+    waitingForExports ??= (async () => {
+      while (pendingExports.size > 0) await Promise.allSettled([...pendingExports])
+      finish(true)
+    })()
+  } else finish(false)
 })
