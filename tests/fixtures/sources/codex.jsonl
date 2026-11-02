@@ -1,0 +1,12 @@
+{"type":"session_meta","timestamp":"2026-01-02T10:00:00Z","payload":{"id":"codex-synthetic-001","cwd":"/work/atlas","cli_version":"0.166.0-alpha.5.1","timestamp":"2026-01-02T10:00:00Z"}}
+{"type":"event_msg","timestamp":"2026-01-02T10:00:00Z","payload":{"type":"task_started","turn_id":"t1"}}
+{"type":"response_item","timestamp":"2026-01-02T10:00:01Z","payload":{"type":"message","id":"u1","role":"user","content":[{"type":"input_text","text":"Check the draft."}]}}
+{"type":"event_msg","timestamp":"2026-01-02T10:00:02Z","payload":{"type":"user_message","message":"Check the draft."}}
+{"type":"response_item","timestamp":"2026-01-02T10:00:03Z","payload":{"type":"reasoning","summary":[{"text":"Never import reasoning."}]}}
+{"type":"response_item","timestamp":"2026-01-02T10:00:04Z","payload":{"type":"agent_message","author":"/root/worker","recipient":"/root","content":[{"type":"input_text","text":"Unrelated agent-to-agent traffic."}]}}
+{"type":"response_item","timestamp":"2026-01-02T10:00:05Z","payload":{"type":"message","id":"a1","role":"assistant","phase":"final_answer","content":[{"type":"output_text","text":"The draft is checked. Deployment is still unknown."},{"type":"encrypted_content","encrypted_content":"opaque"}]}}
+{"type":"event_msg","timestamp":"2026-01-02T10:00:06Z","payload":{"type":"item_completed","turn_id":"t1","item":{"type":"AgentMessage","id":"a1","phase":"final_answer","content":[{"type":"text","text":"The draft is checked. Deployment is still unknown."}]}}}
+{"type":"event_msg","timestamp":"2026-01-02T10:00:30Z","payload":{"type":"task_complete","turn_id":"t1","last_agent_message":"The draft is checked. Deployment is still unknown."}}
+{"type":"event_msg","timestamp":"2026-01-02T10:02:00Z","payload":{"type":"task_started","turn_id":"t2"}}
+{"type":"response_item","timestamp":"2026-01-02T10:02:01Z","payload":{"type":"message","id":"u2","role":"user","content":[{"type":"input_text","text":"Check the draft."}]}}
+{"type":"event_msg","timestamp":"2026-01-02T10:02:02Z","payload":{"type":"turn_aborted","turn_id":"t2"}}

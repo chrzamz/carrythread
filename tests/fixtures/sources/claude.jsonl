@@ -1,0 +1,6 @@
+{"type":"custom-title","sessionId":"claude-synthetic-001","customTitle":"Atlas API review"}
+{"type":"user","sessionId":"claude-synthetic-001","uuid":"u1","timestamp":"2026-01-02T09:00:00Z","cwd":"/work/atlas","version":"2.1.309","message":{"role":"user","content":"Prepare the release notes."}}
+{"type":"assistant","sessionId":"claude-synthetic-001","uuid":"a1","parentUuid":"u1","timestamp":"2026-01-02T09:01:00Z","message":{"role":"assistant","content":[{"type":"thinking","thinking":"Private reasoning must never be indexed."},{"type":"text","text":"The draft is ready; publication has not been checked."},{"type":"tool_use","id":"q1","name":"AskUserQuestion","input":{"questions":[]}}]}}
+{"type":"user","sessionId":"claude-synthetic-001","uuid":"u2","timestamp":"2026-01-02T09:02:00Z","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"q1","content":"The user answered: review before publishing."},{"type":"tool_result","tool_use_id":"shell1","content":"Ignored shell output."}]}}
+{"type":"user","sessionId":"claude-synthetic-001","uuid":"u3","isMeta":true,"timestamp":"2026-01-02T09:03:00Z","message":{"role":"user","content":"This session is being continued from an earlier conversation. A previous draft existed."}}
+{"type":"api-request-blob","sessionId":"claude-synthetic-001","message":{"role":"user","content":"Never import request snapshots."}}

@@ -1,0 +1,7 @@
+{"type":"session","version":3,"id":"pi-synthetic-001","timestamp":"2026-01-03T08:00:00Z","cwd":"/work/atlas"}
+{"type":"message","id":"u1","parentId":null,"timestamp":"2026-01-03T08:00:01Z","message":{"role":"user","content":[{"type":"text","text":"Compare two proposal options."}]}}
+{"type":"message","id":"a1","parentId":"u1","timestamp":"2026-01-03T08:01:00Z","message":{"role":"assistant","content":[{"type":"thinking","thinking":"Private reasoning."},{"type":"text","text":"Option A is a proposal, not an approved decision."}]}}
+{"type":"message","id":"u2","parentId":"u1","timestamp":"2026-01-03T08:02:00Z","message":{"role":"user","content":"Try option B instead."}}
+{"type":"compaction","id":"c1","parentId":"u2","timestamp":"2026-01-03T08:03:00Z","summary":"Earlier options were discussed; no final approval."}
+{"type":"session_info","id":"s1","parentId":"c1","timestamp":"2026-01-03T08:04:00Z","name":"Atlas proposal options"}
+{"type":"leaf","id":"l1","parentId":"s1","timestamp":"2026-01-03T08:05:00Z","targetId":"u2"}

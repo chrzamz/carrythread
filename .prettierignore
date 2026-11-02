@@ -1,0 +1,6 @@
+node_modules
+out
+release
+site/dist
+work
+pnpm-lock.yaml
