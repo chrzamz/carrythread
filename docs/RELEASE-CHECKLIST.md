@@ -15,7 +15,7 @@ This ledger separates completed release checks from compatibility and service pa
 | Distribution | Eight binaries, four `BUILD-*.json` records and five checksum files uploaded; eight binary SHA-256 values matched GitHub asset digests |
 | Checksums | [Combined SHA256SUMS.txt](https://github.com/chrzamz/carrythread/releases/download/v0.1.0/SHA256SUMS.txt), plus four platform-specific files on the release |
 | Public download check | Anonymous HEAD: all eight binaries HTTP 200 with matching Content-Length; `/releases/latest` HTTP 200 resolves to v0.1.0; downloaded public checksum file matches its GitHub digest |
-| Website | [Public Pages site](https://chrzamz.github.io/carrythread/) exists; final released-state copy deployment and public verification pending |
+| Website | [Pages 41577839374](https://github.com/chrzamz/carrythread/actions/runs/41577839374) deployed site commit `fdda45602d016b963c8b9d38037e1e5acf491738`; public index/scripts/styles match source bytes, four languages show v0.1.0 and the correct download URL, walkthrough works, no browser errors |
 
 Application and workflow commits are intentionally different. All four published build records identify the fixed application commit and `v0.1.0`; later documentation and website updates do not move that tag.
 
@@ -46,7 +46,7 @@ Core tests cover supported source formats and partial-coverage reporting, eviden
 
 `tests/e2e.ts` uses development Electron's Node driver and stubs the native-picker return while exercising the real UI→IPC chain. `tests/packaged.e2e.ts` starts the production executable with renderer Chromium CDP, **without Node inspector or main-process test hooks**. It covers the business workflow, four languages, handoff file/registered prompt and normal shutdown. Its portable-data roundtrip uses an offline Store operation plus restarted UI; it is not a claim of native import/export dialog automation. Neither driver certifies human interaction with every OS picker.
 
-The website passed four-language key parity (198 leaves per locale), desktop/mobile widths, keyboard/copy interaction and GitHub Pages subpath checks before publication. The final released-state copy still needs its own deployment/public check.
+The released-state website passed four-language key parity (198 leaves per locale), desktop/mobile widths, keyboard/copy interaction and GitHub Pages subpath checks. After Pages deployment, anonymous byte comparisons verified index.html, app.js, messages.js, release.js and styles.css against the site commit. A separate browser verified all four public languages, v0.1.0/download links, project/handoff interactions and desktop/mobile layout with no runtime errors.
 
 ## Known limits and follow-up validation
 
@@ -65,4 +65,4 @@ The website passed four-language key parity (198 leaves per locale), desktop/mob
 
 两 Mac 在解包后及安装后都验证了 encrypted 密钥保存、重启和 localhost 认证；每轮 4 次正常退出，没有测试驱动杀进程或强制清理。Windows/Linux 的原生安全存储未测。Linux 的 fuse 位通过不代表运行时 ASAR 完整性支持，CI 的 no-sandbox 也不代表正常沙箱启动验收。
 
-真实云 API-key HTTP、真实本地 Ollama 推理、全部原生 Agent 收件路径、人工系统选择器、下载安全提示、Windows portable 与 AppImage 执行等边界仍明确保留。源码 E2E 的原生选择器是返回值 stub；加固生产包使用 renderer CDP，不开放 Node inspector 或主进程测试钩子。最新发布文案的 Pages 部署及公网检查待负责人补录，不沿用旧部署结果。
+真实云 API-key HTTP、真实本地 Ollama 推理、全部原生 Agent 收件路径、人工系统选择器、下载安全提示、Windows portable 与 AppImage 执行等边界仍明确保留。源码 E2E 的原生选择器是返回值 stub；加固生产包使用 renderer CDP，不开放 Node inspector 或主进程测试钩子。最新发布文案由 Pages 41577839374 部署（站点提交 fdda4560）；匿名读取五个公开文件与源码字节一致，四语版本标记、下载链接、演示及桌面/移动端检查通过，浏览器错误0。

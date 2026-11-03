@@ -26,7 +26,7 @@ Goal: ship an open-source, multilingual desktop application and public product w
 - Release workflow commit: `adee0f32be24638063ca918814030a6c87ba4122`. This subsequent workflow-only change creates the diagnostic output directory; every artifact checks out the unchanged application tag above. Build records identify that application commit. The tag was not moved.
 - macOS app, DMG copy and extracted ZIP passed strict ad-hoc signature checks with hardened runtime. Both Mac architectures passed encrypted key save/restart/localhost authentication, non-app-parent helper rejection and four normal exits without driver kill or forced cleanup. Windows/Linux native keystores were not exercised.
 - The eight binary SHA-256 values match the published checksum files and GitHub asset digests. Anonymous HEAD requests returned HTTP 200 for all eight downloads, with Content-Length matching each release asset; `/releases/latest` resolved to v0.1.0, and the public checksum file matched its GitHub digest.
-- The [public website](https://chrzamz.github.io/carrythread/) is deployed. Deployment and public verification of its final released-state copy remain pending; no earlier Pages run is claimed as that final check.
+- The [public website](https://chrzamz.github.io/carrythread/) is live in released state. [Pages run 41577839374](https://github.com/chrzamz/carrythread/actions/runs/41577839374) deployed site commit `fdda45602d016b963c8b9d38037e1e5acf491738`. Anonymous reads of index/scripts/styles matched source bytes; all four public languages showed v0.1.0 and the correct download link, with a working walkthrough and no browser errors.
 
 ## First-version boundaries
 
@@ -36,4 +36,4 @@ Production fuses remain enabled. Linux fuse readback does not establish runtime 
 
 ## 中文
 
-v0.1.0 已正式公开，原始交付目标已完成；未验证的兼容性和真实服务边界仍在[发布证据账本](docs/RELEASE-CHECKLIST.md#中文)中明确保留。应用标签固定为 `8be44946`，发布流程来自后续仅修正工作目录创建的 `adee0f32`，二者不混淆。最终网站发布文案的 Pages 部署与公网检查待负责人补录。
+v0.1.0 已正式公开，原始交付目标已完成；未验证的兼容性和真实服务边界仍在[发布证据账本](docs/RELEASE-CHECKLIST.md#中文)中明确保留。应用标签固定为 `8be44946`，发布流程来自后续仅修正工作目录创建的 `adee0f32`，二者不混淆。最终网站已由 Pages 41577839374 部署；五个公开文件与源码字节一致，四语显示 v0.1.0、下载入口与演示均正常，浏览器错误为0。
