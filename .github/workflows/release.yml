@@ -168,7 +168,9 @@ jobs:
           console.log({packagedExecutable:relative(process.cwd(),executable),platform});
           NODE
       - name: Verify production Electron fuses
-        run: node scripts/verify-fuses.mjs "$CARRYTHREAD_EXECUTABLE" > work/fuses-packaged.json
+        run: |
+          mkdir -p work
+          node scripts/verify-fuses.mjs "$CARRYTHREAD_EXECUTABLE" > work/fuses-packaged.json
       - name: Packaged application GUI end-to-end
         id: packaged_e2e
         timeout-minutes: 8
