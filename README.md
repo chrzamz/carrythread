@@ -10,7 +10,7 @@ Carrythread is a local desktop workspace for people working across AI agents and
 
 A completed response is not always a completed delivery. Carrythread keeps creation, testing, publication, and acceptance distinct, with evidence you can inspect and state you can correct.
 
-> **v0.1.0 is under release validation.** Source setup is available below. Local macOS source E2E and recorded core checks have passed at the checkpoints listed in the release ledger. The final local checks passed 130/130 tests, typecheck, build, source E2E, and local hardened-package renderer-CDP E2E without Node inspector/main-process test hooks; latest-head cross-platform builds are still pending. Direct-provider HTTP, installer, native-target, and signing evidence are tracked separately in the [release checklist](docs/RELEASE-CHECKLIST.md). Do not assume a download or a signed build exists until it appears in [Releases](https://github.com/chrzamz/carrythread/releases).
+> **v0.1.0 is available.** [Download for macOS, Windows, or Linux](https://github.com/chrzamz/carrythread/releases/tag/v0.1.0). These builds have no developer-identity signature; macOS bundles use ad-hoc signing and are not notarized. See the [checksums and verification record](docs/RELEASE-CHECKLIST.md) before installing.
 
 ## What it does
 
@@ -44,13 +44,13 @@ pnpm package     # Build and package locally; never publishes
 pnpm site:build  # Prepare the static website
 ```
 
-Packaging targets are macOS DMG/ZIP, Windows NSIS/portable, and Linux AppImage/DEB. A configured target is not proof it was built or tested. Consult the [platform matrix](docs/RELEASE-CHECKLIST.md#platform-evidence) for actual results. Running a local package command does not sign, notarize, or publish an artifact automatically.
+v0.1.0 includes macOS DMG/ZIP, Windows NSIS/portable, and Linux AppImage/DEB downloads. Native packaged-app and DMG/NSIS/DEB installation tests passed for the four distributed targets; alternate wrappers and other limits are listed in the [platform matrix](docs/RELEASE-CHECKLIST.md#platform-evidence). Local packaging does not publish or provide developer signing/notarization.
 
 ## Installing a published build
 
-The project remains pre-release. Use these steps only for artifacts that actually appear in [Releases](https://github.com/chrzamz/carrythread/releases), and check the architecture, SHA-256, verification notes, and signing status there.
+Download [v0.1.0](https://github.com/chrzamz/carrythread/releases/tag/v0.1.0), choose your OS and architecture, and compare the file with [SHA256SUMS.txt](https://github.com/chrzamz/carrythread/releases/download/v0.1.0/SHA256SUMS.txt). The release includes platform build records and verification limits.
 
-- **macOS:** the current package declares macOS 13.0 or later; checks on the development machine and CI macOS 15 do not cover every OS version. Open the downloaded DMG and drag Carrythread into Applications. An unsigned/not-notarized build may be blocked on first launch. After verifying the source and checksum, macOS may offer **System Settings → Privacy & Security → Open Anyway** for that specific app. No global Gatekeeper disablement is required or recommended.
+- **macOS:** the current package declares macOS 13.0 or later; checks on the development machine and CI macOS 15 do not cover every OS version. Open the downloaded DMG and drag Carrythread into Applications. This ad-hoc-signed, non-notarized build may be blocked on first launch. After verifying the source and checksum, macOS may offer **System Settings → Privacy & Security → Open Anyway** for that specific app. No global Gatekeeper disablement is required or recommended.
 - **Windows:** download the matching NSIS setup executable and follow its installer. An unsigned build may trigger a publisher or SmartScreen warning; it does not carry a verified publisher signature. Inspect the official release and checksum before deciding to proceed. Portable-wrapper verification is listed separately.
 - **Linux:** use the published DEB on a compatible Debian/Ubuntu system, through its package installer or `sudo apt install ./downloaded-package.deb` with the actual downloaded filename. AppImage runtime and normal sandboxed startup have their own verification status; CI's test-only `--no-sandbox` is not an installation instruction.
 

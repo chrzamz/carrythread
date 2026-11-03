@@ -322,7 +322,7 @@ export const messages = {
         "Open Carrythread and select a local history source or explicit import files.",
         "Inspect your records first. Configure an optional AI provider when you want a selected review."
       ],
-      "note": "No published build yet? Follow the repository; source setup instructions live in the README."
+      "note": "Prefer to build locally? Source setup instructions are in the README."
     }
   },
   "zh-CN": {
@@ -648,7 +648,7 @@ export const messages = {
         "打开 Carrythread，选择一个本地历史来源，或明确导入文件。",
         "先查看记录。需要分析时，再配置可选的 AI 服务并选择回顾范围。"
       ],
-      "note": "还没有发布安装包？可关注仓库，源码运行方法见 README。"
+      "note": "也可以自行构建，源码运行方法见 README。"
     }
   },
   "es": {
@@ -974,7 +974,7 @@ export const messages = {
         "Abre Carrythread y elige una fuente local o los archivos que quieres importar.",
         "Inspecciona primero los registros. Configura un proveedor de IA opcional cuando quieras revisar una selección."
       ],
-      "note": "¿Todavía no hay un paquete publicado? Sigue el repositorio; el README explica cómo ejecutar el código fuente."
+      "note": "¿Prefieres compilarlo? El README explica cómo ejecutar el código fuente."
     }
   },
   "ja": {
@@ -1300,7 +1300,7 @@ export const messages = {
         "Carrythreadを開き、ローカルの履歴か取り込むファイルを選びます。",
         "まず記録を確認。AIで分析したいときに、任意のサービスと対象範囲を設定します。"
       ],
-      "note": "配布物がまだない場合はリポジトリを確認してください。ソースからの実行方法はREADMEにあります。"
+      "note": "自分でビルドする場合は、READMEのソースからの実行手順を参照してください。"
     }
   }
 };

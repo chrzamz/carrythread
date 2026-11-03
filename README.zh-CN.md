@@ -10,7 +10,7 @@ Carrythread 是给跨多个 AI Agent、多个项目工作的人使用的本地�
 
 一次回答完成，不一定代表交付完成。Carrythread 分开记录产出、测试、发布与验收，保留可检查的依据，也允许你纠正状态。
 
-> **v0.1.0 正在进行发布验证。** 目前可按下方说明从源码运行。本地 macOS 源码端到端与已记录的核心检查已在对应检查点通过；最终本地检查已通过 130/130 测试、类型检查、构建、source E2E及本机加固生产包的renderer-CDP E2E，后者不使用Node inspector或主进程testhook；最新头跨平台构建仍待执行。真实模型 HTTP、安装器、原生目标与签名证据分别记录在[发布检查清单](docs/RELEASE-CHECKLIST.md)。只有出现在 [Releases](https://github.com/chrzamz/carrythread/releases) 中的文件才是实际发布物；不要把构建目标当成已发布或已签名安装包。
+> **v0.1.0 已发布。** [下载 macOS、Windows 或 Linux 版本](https://github.com/chrzamz/carrythread/releases/tag/v0.1.0)。这些构建没有开发者身份签名；macOS 应用使用 ad-hoc 签名，未经公证。安装前请查看[校验值与验证记录](docs/RELEASE-CHECKLIST.md#中文)。
 
 ## 可以做什么
 
@@ -44,13 +44,13 @@ pnpm package     # 本地构建并打包，不发布
 pnpm site:build  # 准备静态宣传网站
 ```
 
-配置的打包目标是 macOS DMG / ZIP、Windows NSIS / portable、Linux AppImage / DEB。配置目标不代表已经构建或实测；实际结果见[平台验证表](docs/RELEASE-CHECKLIST.md#platform-evidence)。本地打包不会自动完成签名、公证或发布。
+v0.1.0 提供 macOS DMG / ZIP、Windows NSIS / portable、Linux AppImage / DEB 下载。四个发布目标的原生打包程序，以及 DMG / NSIS / DEB 实际安装测试已通过；其他包装程序与边界见[平台验证表](docs/RELEASE-CHECKLIST.md#platform-evidence)。本地打包不会自动发布，也不会提供开发者签名或公证。
 
 ## 安装实际发布的版本
 
-项目仍为 pre-release。只有 [Releases](https://github.com/chrzamz/carrythread/releases) 中实际存在的文件才适用以下步骤，先核对架构、SHA-256、验证说明与签名状态。
+下载 [v0.1.0](https://github.com/chrzamz/carrythread/releases/tag/v0.1.0)，选择对应系统和架构，并用 [SHA256SUMS.txt](https://github.com/chrzamz/carrythread/releases/download/v0.1.0/SHA256SUMS.txt) 核对文件。发布页同时提供各平台构建记录与验证边界。
 
-- **macOS：** 当前包声明最低 macOS 13.0；本机及 CI macOS 15 的检查不代表遍历了所有系统版本。打开下载的 DMG，将 Carrythread 拖入“应用程序”。未签名/未公证版本首次打开可能被系统阻止；核对来源和校验值后，可以查看“系统设置 → 隐私与安全性”中针对该应用的“仍要打开”。不需要、也不建议全局关闭 Gatekeeper。
+- **macOS：** 当前包声明最低 macOS 13.0；本机及 CI macOS 15 的检查不代表遍历了所有系统版本。打开下载的 DMG，将 Carrythread 拖入“应用程序”。此 ad-hoc 签名、未经公证的版本首次打开可能被系统阻止；核对来源和校验值后，可以查看“系统设置 → 隐私与安全性”中针对该应用的“仍要打开”。不需要、也不建议全局关闭 Gatekeeper。
 - **Windows：** 下载对应 NSIS setup 程序并按安装向导操作。未签名版本可能触发发布者或 SmartScreen 提示，不具有已验证发布者签名；决定继续前先核对官方发布页与校验值。portable 包装程序的验收另列。
 - **Linux：** 在兼容的 Debian/Ubuntu 系统中，通过软件包安装器，或将实际下载文件名代入 `sudo apt install ./downloaded-package.deb` 安装 DEB。AppImage 与正常沙箱启动有独立验证状态；CI 合成测试使用的 `--no-sandbox` 不是安装指引。
 

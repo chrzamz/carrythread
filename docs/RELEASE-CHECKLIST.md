@@ -1,163 +1,68 @@
-# v0.1.0 release checklist
+# v0.1.0 release evidence
 
-[中文](#中文)
+[**Public release**](https://github.com/chrzamz/carrythread/releases/tag/v0.1.0) · published **2026-11-03 04:14:41 UTC** · GitHub `draft=false`, `prerelease=false`.
 
-This is the release evidence ledger. Record the tested commit, OS/architecture, command, artifact, and result. A checkbox without evidence does not establish release readiness. Update this file when the final release audit changes the status below.
+This ledger separates completed release checks from compatibility and service paths that remain unverified. Test data and model responses in CI are synthetic; no native agent is started by the release E2E.
 
-**Current status:** pre-release freeze. Recorded local/source/model diagnostics are listed below; the final local candidate passed 130/130 tests, typecheck/build, and source Electron E2E and local hardened-package renderer-CDP E2E; latest-head cross-platform builds still await execution. No public binary, completed latest-head CI installer run, direct provider-key HTTP pass, or signing result is claimed.
+## Reproducible references
 
-## Evidence currently recorded
+| Record | Evidence |
+|---|---|
+| Application source / fixed tag | `v0.1.0` → `8be44946a94c8bdd13f3a0b8db5d094fc00a3fee` |
+| Core CI | [41574690615](https://github.com/chrzamz/carrythread/actions/runs/41574690615): 130/130 tests, typecheck/build, source E2E and site checks passed |
+| Native release and draft gates | [41575726233](https://github.com/chrzamz/carrythread/actions/runs/41575726233): all four native targets and draft creation passed |
+| Workflow revision | `adee0f32be24638063ca918814030a6c87ba4122`; workflow-only output-directory fix, with each build checking out the fixed application tag |
+| Distribution | Eight binaries, four `BUILD-*.json` records and five checksum files uploaded; eight binary SHA-256 values matched GitHub asset digests |
+| Checksums | [Combined SHA256SUMS.txt](https://github.com/chrzamz/carrythread/releases/download/v0.1.0/SHA256SUMS.txt), plus four platform-specific files on the release |
+| Public download check | Anonymous HEAD: all eight binaries HTTP 200 with matching Content-Length; `/releases/latest` HTTP 200 resolves to v0.1.0; downloaded public checksum file matches its GitHub digest |
+| Website | [Public Pages site](https://chrzamz.github.io/carrythread/) exists; final released-state copy deployment and public verification pending |
 
-| Area | Status at documentation handoff | Evidence / limit |
-|---|---|---|
-| Core implementation | Present | Local adapters, SQLite work state, AI protocols, reconciliation, edits/merge/split, and handoff planning/launch paths exist. |
-| Core checks | Earlier CI and local checkpoint passed | [Initial three-system CI](https://github.com/chrzamz/carrythread/actions/runs/41499244785) passed. Frozen local candidate: 130/130 tests, typecheck and build, including continuity, credential/helper and runtime-hardening regressions. Final-head cross-platform CI remains pending. |
-| Static website | Checked locally | `node site/check.mjs`: 4 languages × 198 translation leaves, 1440/1100/390/360 widths, keyboard tabs, project selection, copy, language-state preservation, relative GitHub Pages subpath, identical SVG assets, no page errors. |
-| Site visual review | Checked locally | English/Spanish desktop and Chinese/Japanese mobile synthetic walkthrough screenshots inspected. |
-| Local macOS source end-to-end | Passed at recorded checkpoint | Real Electron + synthetic localhost HTTP: 2 sessions → 1 item, 5 provider requests, cross-agent follow-up association, pause protection, cancellation, restart, export/clear/import, clipboard, four languages and dark appearance; zero page errors. `nativeAgentStarted=false`. Native picker return is stubbed, with real UI→IPC. Final local rerun also passed with the model deliberately omitting `existingId`; the uniquely linked original item and pause remained intact. |
-| Remaining end-to-end boundaries | Pending | Human native-picker interaction, all target-app launch/receipt paths, and latest-head cross-platform packaged/installer runs require separate evidence. |
-| Real-model continuity diagnostic | Passed, limited route | One 35.1-second synthetic test through bundled Codex CLI bridged a real model into `runReview`; agent/title/cwd changed, manual override off, existing ID and decisions retained, exact evidence validated, no duplicate or false done. It did not test ordinary provider-key HTTP. |
-| Native handoff diagnostic | Passed, limited route | A bundled Codex CLI read the synthetic file and returned its nonce/project/state. This does not certify all app deep links or a general receipt callback. |
-| Direct provider HTTP / local Ollama | Unverified / not completed | No real API-key HTTP pass. The isolated Ollama attempt stopped before model download/load or inference; no semantic local-model pass. |
-| Packaged macOS key storage / shutdown | Passed locally with synthetic key | Same-signed short-lived pipe helper: real encrypted save/restart/localhost HTTP auth, four normal exit-0 runs, and untrusted Node-parent rejection. No helper window, Store or network. Final tagged cross-platform results remain pending. |
-| Owned-helper fault injection | Passed locally, one observation | Actual SIGSTOP: session fallback in 4.165 s with working HTTP auth; quit in 89 ms, exit 0, no forced cleanup. Not a latency guarantee. |
-| Hardened package E2E | Passed locally | `tests/packaged.e2e.ts` uses renderer Chromium CDP, production fuses, no Node inspector or main-process test hook. Source E2E remains a separate development-driver check. |
-| Unpacked packaged-app GUI E2E | Workflow added; runs pending | Release builds locate the actual app and run the isolated synthetic E2E on four native targets. Record actual results below; workflow presence is not a pass. |
-| Installer installation | Workflow added; CI runs pending | Actual DMG mount/copy, NSIS silent install, and DEB apt install each have installed-app E2E plus cleanup gates. Presence of the workflow is not evidence of passing. |
-| Local macOS DMG check | Passed as reported | Release owner mounted the DMG read-only and ran E2E from its app. The new CI copy/install/cleanup path still needs its own run. |
-| End-user prompts / alternate wrappers | Pending | Gatekeeper, SmartScreen, download quarantine, AppImage runtime, and Windows portable wrapper remain separate surfaces. |
-| Public source repository | Published | [chrzamz/carrythread](https://github.com/chrzamz/carrythread); public push reported by release owner. |
-| Public website | Earlier deployment verified | [Pages run](https://github.com/chrzamz/carrythread/actions/runs/41499244628) succeeded; [public site](https://chrzamz.github.io/carrythread/) remained pre-release. Final copy changes need their own deployment check. |
-| Public binary release | Pending | Verify actual assets and the final release notes before changing download status. |
+Application and workflow commits are intentionally different. All four published build records identify the fixed application commit and `v0.1.0`; later documentation and website updates do not move that tag.
 
 ## Platform evidence
 
-A configured target is not an available or verified artifact. Replace each pending result with evidence, or explicitly state that a target is not distributed in this release.
+All results below come from the final native release run, not an earlier candidate.
 
-| OS / architecture | Targets | Artifact + checksum | Unpacked packaged GUI E2E | Installer installation | Native-agent receipt | Signing / notarization |
-|---|---|---|---|---|---|---|
-| macOS arm64 | DMG, ZIP | Pending | Pending | Pending | Pending | Unsigned distribution; not notarized |
-| macOS x64 | DMG, ZIP | Pending | Pending | Pending | Pending | Unsigned distribution; not notarized |
-| Windows x64 | NSIS, portable | Pending | Pending | Pending | Pending | Unsigned distribution |
-| Linux x64 | AppImage, DEB | Pending | Pending; CI uses test-only no-sandbox | Pending, including AppImage runtime | Pending | Unsigned distribution |
+| OS / architecture | Published formats | Unpacked GUI E2E | Actual installation + installed GUI E2E + cleanup | Five production fuses | Build record |
+|---|---|---|---|---|---|
+| macOS arm64 | DMG, ZIP | Passed | Passed: read-only DMG mount → app copy → E2E → detach/cleanup | Passed, unpacked + installed | [BUILD-mac-arm64.json](https://github.com/chrzamz/carrythread/releases/download/v0.1.0/BUILD-mac-arm64.json) |
+| macOS x64 | DMG, ZIP | Passed | Passed: read-only DMG mount → app copy → E2E → detach/cleanup | Passed, unpacked + installed | [BUILD-mac-x64.json](https://github.com/chrzamz/carrythread/releases/download/v0.1.0/BUILD-mac-x64.json) |
+| Windows x64 | NSIS, portable | Passed | Passed: NSIS silent install → E2E → uninstall/cleanup | Passed, unpacked + installed | [BUILD-win-x64.json](https://github.com/chrzamz/carrythread/releases/download/v0.1.0/BUILD-win-x64.json) |
+| Linux x64 | AppImage, DEB | Passed | Passed: DEB apt install → E2E → purge/cleanup | Passed, unpacked + installed | [BUILD-linux-x64.json](https://github.com/chrzamz/carrythread/releases/download/v0.1.0/BUILD-linux-x64.json) |
 
-For each distributed artifact, record its exact filename, SHA-256, build commit, build environment, minimum OS assumptions, and any known launch limitations. The release workflow records `sourceE2E` and `packagedE2E` independently. A successful unpacked-app GUI test does not validate installation. The separate installer workflow requires successful setup, installed-app E2E from a distinct path, and cleanup before recording `installerInstallation: passed`. AppImage execution and the Windows portable wrapper remain separate. Cross-building does not replace installing on the target OS.
+The installed executable is distinct from the unpacked executable. Build records retain separate `sourceE2E`, `packagedE2E`, `installerInstallation` and `productionFuses` results. Runners were native macOS 15 arm64/x64, Windows 2025 x64 and Ubuntu 24.04 x64. The macOS package declares macOS 13.0 minimum; this is not testing of every intervening OS version. Linux GUI tests use Xvfb and test-only `--no-sandbox`; normal sandboxed startup remains unverified.
 
-## Core and data boundaries
+## Signing, fuses and credentials
 
-- [ ] `pnpm install --frozen-lockfile` works from a clean checkout with the pinned pnpm and supported Node version.
-- [ ] `pnpm check` passes on the release commit; final commands and test count are recorded.
-- [ ] Import all claimed formats using synthetic fixtures; compare selected real-format structures separately without committing private data.
-- [ ] Codex event mirrors do not create duplicate evidence; user-answer records and real event timestamps are preserved where supported.
-- [ ] OpenCode v2 `session_message` and unknown schemas are reported as partial/unsupported rather than silently omitted as successful coverage.
-- [ ] Finch native history takes precedence over runtime snapshots; missing timestamps remain explicit.
-- [ ] Oversized, inaccessible, symlinked, incomplete, and credential/configuration paths produce safe coverage outcomes.
-- [ ] Original JSONL and SQLite histories are unchanged after import, review, export, and clearing Carrythread data.
-- [ ] Manual corrections survive incremental review. Paused/cancelled items do not reappear as fresh active duplicates.
-- [ ] Invalid AI schemas, invented evidence IDs/quotes, and unsupported completion claims fail safely.
-- [ ] Review context includes only selected messages, available selected-session metadata, and evidence/registered-handoff-linked existing items; unrelated items or unselected original conversation messages do not escape scope.
-- [ ] A valid first-line marker user message can reconcile the intended item across agent/title/cwd changes. Unknown, forged, assistant-quoted, conflicting, or wrong-target markers do not establish a link.
-- [ ] Cover a model omitting `existingId` while citing a valid marker user message; do not attach unrelated new topics in the same session.
-- [ ] Workspace hashes are equality hints, not global project identity; missing metadata and cross-device registry limits are visible.
-- [ ] Empty, failed, cancelled, and partial reviews remain understandable and do not erase healthy existing work.
-- [ ] Workspace export/import retains evidence and history, excludes keys/provider settings/handoff records, and does not silently overwrite local item edits.
-- [ ] Clear-data behavior matches privacy documentation, including app-managed handoffs and session-only keys.
+- **macOS:** the app bundle, DMG-installed copy and extracted ZIP passed strict ad-hoc signature verification, including hardened-runtime metadata. This is **not developer-identity signing or notarization**. Windows and Linux distributions are unsigned.
+- **Five fuse readbacks passed on every target**, before unpacked and installed E2E: `RunAsNode`, `EnableNodeOptionsEnvironmentVariable` and `EnableNodeCliInspectArguments` disabled; `OnlyLoadAppFromAsar` and `EnableEmbeddedAsarIntegrityValidation` enabled. Electron supports runtime ASAR integrity on macOS from Electron 16 and Windows from Electron 30; this app uses Electron 45. An enabled Linux bit does **not** establish Linux runtime ASAR integrity.
+- **Both Mac architectures, unpacked and installed:** `nativeKeyMode=encrypted`, encrypted save/restart/localhost HTTP authentication passed; the same-signed short-lived helper rejected a non-app parent. Each E2E recorded four normal exits, with no driver kill or forced cleanup. The helper uses anonymous pipes and has no window, Store or network; presence display does not decrypt.
+- **Windows/Linux native keystore: not exercised.** Their synthetic E2E uses an unauthenticated localhost test provider. No cross-platform encrypted-storage claim is made.
+- A separate local, test-owned helper SIGSTOP injection produced session fallback in 4.165 seconds and exit 0 in 89 ms during the suspended operation, with no forced cleanup. These are individual diagnostic observations, not latency guarantees.
 
-## Production fuses and credential boundary
+## What the tests cover
 
-The five builder-managed flags disable `RunAsNode`, `EnableNodeOptionsEnvironmentVariable`, and `EnableNodeCliInspectArguments`, and enable `OnlyLoadAppFromAsar` plus `EnableEmbeddedAsarIntegrityValidation`. Final binary readback is required. Embedded ASAR runtime validation is supported on macOS with Electron 16+ and Windows with Electron 30+; this project uses Electron 45. Linux Enabled bytes are not proof of Linux runtime ASAR integrity.
+Core tests cover supported source formats and partial-coverage reporting, evidence validation, scope boundaries, lifecycle corrections, registered handoff continuity, credential isolation and error cases. Source E2E covers synthetic import → selected localhost review → correction/pause → handoff → follow-up association, cancellation/restart, portable data, exact clipboard bytes, four languages and dark appearance. The mock deliberately omits `existingId` in a registered follow-up; the original item remains linked without duplication and retains the manual pause.
 
-Packaged macOS keys may pass through the same-signed short-lived native helper over anonymous pipes; they are not strictly main-process-only. The helper has no window, Store, or network client. Presence is metadata-only; real use retrieves the key. Source E2E can stub a native-dialog return, while the production-package CDP test cannot use Node inspector or a main-process test hook.
+`tests/e2e.ts` uses development Electron's Node driver and stubs the native-picker return while exercising the real UI→IPC chain. `tests/packaged.e2e.ts` starts the production executable with renderer Chromium CDP, **without Node inspector or main-process test hooks**. It covers the business workflow, four languages, handoff file/registered prompt and normal shutdown. Its portable-data roundtrip uses an offline Store operation plus restarted UI; it is not a claim of native import/export dialog automation. Neither driver certifies human interaction with every OS picker.
 
-- [ ] Verify all five fuse values, ASAR enforcement where supported, and normal production CDP workflow on each final tagged artifact.
-- [ ] Record final installer E2E with the hardened driver; do not substitute an earlier less-hardened package or source-driver result.
+The website passed four-language key parity (198 leaves per locale), desktop/mobile widths, keyboard/copy interaction and GitHub Pages subpath checks before publication. The final released-state copy still needs its own deployment/public check.
 
-## AI connection and review
+## Known limits and follow-up validation
 
-- [ ] Verify each shipped protocol path: OpenAI-compatible, Anthropic Messages, and Ollama.
-- [ ] Record which live providers/models/endpoints were actually tested. Label untested presets, regions, and models as unverified.
-- [ ] Synthetic connection testing sends no user evidence and produces a useful success/failure message.
-- [ ] Normal API presets and provider billing boundaries are visible; no subscription/Coding Plan login reuse is implied.
-- [ ] Manual model entry works without a model-list endpoint.
-- [ ] Authentication errors, quota limits, timeout, cancellation, invalid response, and output limits preserve existing work.
-- [ ] Preview review scope; verify 120-message / 60,000-character batches, maximum eight batches, and over-limit rejection before the first network request.
-- [ ] Changing endpoint or protocol clears the previous key and cannot send it to the new destination.
-- [ ] HTTPS/local-HTTP validation and redirect refusal protect credentials; errors do not echo keys or request bodies.
-- [ ] Native key storage is tested across restart. No secure backend means a visible session-only key, never plaintext persistence.
+- **Real provider HTTP and Ollama:** no direct external API-key HTTP semantic pass or real local Ollama inference pass. Three protocols are tested with controlled responses. The attempted Ollama diagnostic stopped before model loading/inference. A separate real-model continuity check passed through a Codex CLI bridge into `runReview`; it does not validate shipped provider HTTP or add subscription login.
+- **Native handoff:** one separate bundled-CLI diagnostic read a synthetic context file and returned its nonce/project/state. This does not certify all desktop deep links, CLI versions, launch paths or receipt callbacks. Opening/prefilling and confirmed reading remain distinct.
+- **Installer surfaces:** end-user Gatekeeper/SmartScreen/quarantine prompts, Windows portable-wrapper execution and AppImage runtime remain unverified. CI installation is not coverage of every desktop environment, OS version or security policy.
+- **Source formats:** OpenCode v2 `session_message` is reported partial rather than parsed. Pi v1–v3 relies on synthetic format fixtures; Finch runtime snapshots can lack timestamps. The reader does not imply every historical or future tool version is supported.
+- **Data/privacy:** the local workspace database is not wholly encrypted. AI review is opt-in for selected evidence and linked work context. Whole-workspace export includes private evidence and excludes provider keys/settings and the local handoff registry. Cross-device imports do not restore trusted marker links automatically.
+- **Licensing/distribution:** Apache-2.0 and bundled dependency notices are included; public fixtures and screenshots are synthetic. No hosted sync, paid tier, automatic publishing or general agent orchestration is included.
 
-## Desktop end-to-end and handoff
+## 中文
 
-- [x] Recorded local macOS source E2E: synthetic import, selected localhost-model review, registered follow-up association, manual pause, repeated review, cancellation, restart, export/clear/import, clipboard, four languages and dark appearance. No native agent started; picker return was stubbed.
-- [x] Final local candidate rerun after continuity-tolerance changes: `pnpm check` passed 130/130 and updated real Electron E2E passed.
-- [ ] Run CI/build/packaged/installer checks against the final submitted head; do not transfer earlier platform results to it.
-- [ ] Record packaged GUI E2E against the discovered executable for macOS arm64/x64, Windows x64, and Linux x64. Preserve isolated synthetic results; never run against personal app data.
-- [ ] Record the actual installer path for each native target: DMG mount/copy, NSIS silent installation, or DEB package installation. Verify the E2E executable differs from the unpacked path, run with isolated synthetic app data, and confirm detach/uninstall/cleanup.
-- [ ] Separately complete native source-picker, search, evidence navigation, end-user installation prompts/quarantine, AppImage runtime, and Windows portable-wrapper checks. A CI silent-install pass does not prove these paths.
-- [ ] For Linux, record the CI-only `--no-sandbox` limitation and separately verify normal sandboxed startup / AppImage runtime.
-- [ ] Correct an item, merge two matching items, split one item, pause/cancel an item, then review new evidence without losing those decisions.
-- [ ] Prepare a handoff and inspect goal, confirmed decisions, current state, open questions, and references.
-- [ ] Verify a real supported destination reads the intended package when explicitly asked; do not infer reading from window creation.
-- [ ] First task launch in a directory requires native folder-picker confirmation; imported `cwd` is not trusted as launch authorization. Verify the remembered-directory path separately.
-- [ ] Distinguish open, prefilled, execution-triggering, submitted, and receipt states in wording. Native CLI and Finch-new paths may start work.
-- [ ] Test missing CLI/app, stale package, mismatched session, missing cwd, special characters, cancelled native dialogs, and failed target launch.
-- [ ] Existing-session copy paths explain the required paste; manual export works without the target installed.
-- [ ] Test cross-device export with a reachable handoff file and project directory; original machine paths are not assumed valid.
+[v0.1.0 已正式发布](https://github.com/chrzamz/carrythread/releases/tag/v0.1.0)，发布时间为 2026-11-03 04:14:41 UTC；不是草稿或 GitHub prerelease。8 个二进制、4 份构建记录和 5 份校验文件已上传，二进制 SHA-256 与 GitHub 资产摘要一致。8 个公开下载匿名 HEAD 均为 200 且大小一致，latest 正确指向 v0.1.0，公开校验文件摘要也已复核。
 
-## Languages, accessibility, and privacy
+应用标签固定为 `8be44946`；执行发布的 workflow 来自后续仅修正输出目录创建的 `adee0f32`，各平台仍构建同一应用标签，未移动 tag。130 项核心测试、类型检查、构建与源码 E2E 已通过；四目标的解包后 GUI、实际 DMG/NSIS/DEB 安装、安装后 GUI、清理和五项 fuse 读回全部通过。macOS 两架构的 app、DMG 副本和 ZIP 严格 ad-hoc 签名检查通过，但没有开发者身份签名或公证。
 
-- [ ] English, Simplified Chinese, Spanish, and Japanese key parity passes in the app, including error and accessibility strings.
-- [ ] Language changes preserve selected work. Generated review language follows the choice while source quotes remain unchanged.
-- [ ] Verify keyboard navigation, focus return, scrolling, dialog states, long labels, and light/dark appearance in the actual desktop app.
-- [ ] Inspect website at desktop/mobile sizes in all four languages; run `node site/check.mjs` after final copy changes.
-- [ ] Privacy copy matches the final code: local database is not wholly encrypted; external review is selected; whole-workspace export contains private evidence.
-- [ ] All shipped fixtures, screenshots, examples, and release logs are synthetic or demonstrably free of private data.
-- [ ] No provider keys, private account paths, customer names, runtime databases, exports, or real conversation snapshots enter tracked files or artifacts.
+两 Mac 在解包后及安装后都验证了 encrypted 密钥保存、重启和 localhost 认证；每轮 4 次正常退出，没有测试驱动杀进程或强制清理。Windows/Linux 的原生安全存储未测。Linux 的 fuse 位通过不代表运行时 ASAR 完整性支持，CI 的 no-sandbox 也不代表正常沙箱启动验收。
 
-## Licensing and distribution
-
-- [ ] `LICENSE` is the full, unmodified official Apache-2.0 text; package metadata agrees.
-- [ ] `NOTICE` retains the bundled React/Scheduler, Lucide/Feather, Zod, and Electron notices; review transitive/runtime notices when dependencies change.
-- [ ] Inspect packaged output for the Electron/Chromium license set, not only the app's `LICENSE` and `NOTICE` inside its archive.
-- [ ] Brand assets are original and website copies match; no unlicensed fonts, competitor graphics, or fabricated testimonials.
-- [ ] `pnpm package` is local-only. Publish only explicitly selected, checked artifacts with truthful signing status.
-- [ ] Source repository is public at the intended URL, contains no private history, and has a reproducible version tag.
-- [ ] CI result corresponds to the exact release commit; include checksums and limitations in release notes.
-- [ ] Verify the public Releases page and actual downloads after upload.
-- [ ] Build and publish Pages, then verify the public URL, relative assets, all language switches, and release links.
-- [ ] Only after release verification, update `site/release.js`, README status, and the platform table to describe what is available.
-
-## Release record template
-
-```text
-Version / commit:
-Date:
-Build environment:
-Checks and results:
-Artifact names + SHA-256:
-Installation/runtime evidence by OS:
-Live provider/model checks:
-Native handoff evidence:
-Signing/notarization status:
-Known limits / unverified surfaces:
-Public release URL:
-Public website URL:
-```
-
-# 中文
-
-本文件记录发布证据。填写实际提交、系统/架构、命令、安装包及结果；仅勾选不能证明已验收。当前仍在发布验证中，不能从源码存在、测试通过或配置了构建目标推断已发布、已签名或全平台可用。
-
-当前已记录：核心实现已具备；冻结候选已通过类型检查、构建及130/130测试，最新头跨平台CI仍待执行。宣传站四语各198词条、四种宽度、键盘、复制、语言切换保持选择、GitHub Pages子路径与资源副本检查通过，并检查了合成截图。已完成的本地macOS源码端到端覆盖2会话归并为1事项、5次本地合成HTTP请求、注册交接关联、暂停/重复回顾、取消、重启、导出清空再导入、剪贴板、四语及暗色，页面错误0；未启动真实Agent。原生选择器返回值使用stub，真实UI→IPC链路已跑，但不是人工OS选择器交互验收。最后连续性容错修复后的E2E已再次通过：模型故意漏existingId仍关联原事项、未重复且保留暂停。另有35.1秒真实模型连续性诊断通过配套Codex CLI桥接到原runReview，保留原ID与决定且未重复/误标完成；这不是真实key HTTP服务验证。原生CLI合成文件收件有独立通过记录，Ollama未完成。最新本机加固生产包renderer-CDP E2E不使用Node inspector/主进程testhook；macOS同签名匿名管道短命helper完成真实encrypted保存、重启HTTP认证及四次正常exit0，非可信Node父进程被拒。实际SIGSTOP测试出现4.165秒会话回退且HTTP认证正常，挂起中退出89ms/exit0，无强制清理；仅是单次观察。presence不解密，真正使用才取key。五项fuse已本机读回，Linux不宣称运行时ASAR integrity。四目标解包后程序及实际安装器GUI端到端已接入发布workflow，最新头CI结果仍待记录；安装器必须经过实际DMG复制/NSIS安装/DEB安装、不同路径GUI测试和卸载清理才可标通过。本机只读挂载DMG并从镜像内应用运行E2E已有负责人报告通过，但不代替新的CI流程。AppImage、Windows portable、系统下载安全提示、生产沙箱启动、签名及公开下载仍需单独记录。此前源码仓库和Pages已公开，不能把早期CI或网站成功套到最新代码与安装包。
-
-## 必须分别核验
-
-- **数据链路：** 支持格式真实读取、镜像去重、用户答复、时间、未知格式与覆盖缺口；原文件不变；手动纠正和暂停不被后续回顾覆盖。
-- **AI边界：** 可预览范围、每批最多120消息/60,000字符、最多八批、超限在网络前拒绝；地址或协议改变清旧key。三协议分别验证；记录实际服务/模型，不把mock当真实调用；仅发送所选依据与关联事项；模型结构、证据、完成声明不合规时安全失败。
-- **密钥：** OS保护存储的实际重启行为；无安全后端时明确仅会话存储；不泄露请求、密钥或敏感报错。
-- **交接：** 首次发起任务使用原生目录选择器确认，不直接信任导入cwd；预览后实际打开目标、让目标读取正确材料；区分打开/预填/触发执行/提交/收到；检查失效会话、目录、特殊字符、缺失应用及手动回退。
-- **用户体验：** 四语完整、切换不丢工作、原文引用不改；桌面明暗主题、焦点、键盘、长文字和错误状态；网站移动端与发布入口。
-- **平台：** 在上方表逐项填安装包、SHA-256、解包后GUI端到端、实际安装器安装、原生Agent收件、签名/公证。sourceE2E、packagedE2E和installerInstallation分别记录；Linux合成CI使用的no-sandbox不能代表生产沙箱验收。跨平台构建不等于目标系统实测；不提供的目标也须明确写出。
-- **发布资料：** 隐私说明和最终实现一致；不含真实对话、凭证、客户信息、私有账号路径或运行数据库；依赖许可证和Electron/Chromium完整许可材料保留。
-- **公网结果：** 最终提交CI、版本标签、实际下载、校验值、限制与签名说明；发布后独立查看Releases和Pages。只有确认可用后，才更新网站状态和README。
-
-最终记录应包含版本/提交、日期、构建环境、检查、安装包与校验、平台运行、模型与交接实测、签名状态、已知限制、发布链接和网站链接。任何未测项保持明确，不能靠一条“全部通过”覆盖。
+真实云 API-key HTTP、真实本地 Ollama 推理、全部原生 Agent 收件路径、人工系统选择器、下载安全提示、Windows portable 与 AppImage 执行等边界仍明确保留。源码 E2E 的原生选择器是返回值 stub；加固生产包使用 renderer CDP，不开放 Node inspector 或主进程测试钩子。最新发布文案的 Pages 部署及公网检查待负责人补录，不沿用旧部署结果。
